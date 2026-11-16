@@ -27,8 +27,23 @@
           <span id="lbl-global-create-task">Create Task</span>
         </button>
         <span class="top-bar-project-indicator" id="top-bar-project-name"></span>
-        <button class="btn btn-secondary" id="btn-signout" style="display: none; padding: 6px 12px; font-size: 0.78rem;"></button>
-        <div class="top-bar-avatar" id="top-bar-avatar">D</div>
+        <div class="top-bar-profile-wrap" id="profile-menu-container">
+          <button class="top-bar-avatar" id="top-bar-avatar" type="button" aria-haspopup="true" aria-expanded="false" title="Profile &amp; Account">D</button>
+          <div class="profile-dropdown-menu" id="profile-dropdown-menu">
+            <div class="profile-dropdown-header">
+              <div class="profile-dropdown-avatar" id="profile-menu-avatar-initial">D</div>
+              <div class="profile-dropdown-info">
+                <span class="profile-dropdown-name" id="profile-menu-name">User</span>
+                <span class="profile-dropdown-email" id="profile-menu-email">user@example.com</span>
+              </div>
+            </div>
+            <div class="profile-dropdown-divider"></div>
+            <button type="button" class="profile-dropdown-item profile-dropdown-signout" id="btn-profile-signout">
+              <span id="profile-signout-icon" style="display: flex;"></span>
+              <span id="lbl-profile-signout">Sign Out</span>
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 

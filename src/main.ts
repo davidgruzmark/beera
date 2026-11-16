@@ -63,9 +63,36 @@ class App {
       this.authModal.mount(authModalBackdrop);
     }
 
-    // Sign Out Trigger
-    const signOutBtn = document.getElementById('btn-signout');
-    signOutBtn?.addEventListener('click', () => {
+    // Profile Menu and Sign Out Trigger
+    const profileContainer = document.getElementById('profile-menu-container');
+    const avatarBtn = document.getElementById('top-bar-avatar');
+    const profileSignOutBtn = document.getElementById('btn-profile-signout');
+
+    if (avatarBtn && profileContainer) {
+      avatarBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = profileContainer.classList.contains('open');
+        profileContainer.classList.toggle('open', !isOpen);
+        avatarBtn.setAttribute('aria-expanded', String(!isOpen));
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!profileContainer.contains(e.target as Node)) {
+          profileContainer.classList.remove('open');
+          avatarBtn.setAttribute('aria-expanded', 'false');
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && profileContainer.classList.contains('open')) {
+          profileContainer.classList.remove('open');
+          avatarBtn.setAttribute('aria-expanded', 'false');
+        }
+      });
+    }
+
+    profileSignOutBtn?.addEventListener('click', () => {
+      profileContainer?.classList.remove('open');
       void store.signOut();
     });
 
@@ -85,6 +112,16 @@ class App {
           // Auto-trigger project creation modal
           window.dispatchEvent(new CustomEvent('open-new-project-modal'));
           return;
+        }
+
+        // Switch to default board view so the new task is immediately in front of the user
+        if (state.currentView !== 'board') {
+          store.setView('board');
+        }
+
+        // Clear any filters that could hide the new task from the board
+        if (state.filters.search || state.filters.priority !== 'all' || state.filters.tag !== 'all' || state.filters.assignee !== 'all') {
+          store.setFilters({ search: '', priority: 'all', tag: 'all', assignee: 'all' });
         }
         
         const title = state.language === 'he' ? 'משימה חדשה' : 'New Task';
@@ -342,17 +379,30 @@ class App {
       syncEl.style.display = 'inline-flex';
     }
 
-    const signOutBtn = document.getElementById('btn-signout');
-    if (signOutBtn) {
-      signOutBtn.textContent = t('auth.signout');
-      signOutBtn.style.display = userEmail ? 'inline-flex' : 'none';
-    }
+    const userProfile = store.getState().currentUserProfile;
+    const displayName = userProfile?.displayName || userEmail?.split('@')[0] || (store.getState().language === 'he' ? 'משתמש' : 'User');
+    const initial = (displayName || userEmail || 'D').charAt(0).toUpperCase();
 
     const avatarEl = document.getElementById('top-bar-avatar');
     if (avatarEl) {
-      avatarEl.textContent = userEmail ? userEmail.charAt(0).toUpperCase() : 'D';
-      avatarEl.title = userEmail || '';
+      avatarEl.textContent = initial;
+      avatarEl.title = `${displayName} (${userEmail || ''})`;
     }
+
+    const menuAvatar = document.getElementById('profile-menu-avatar-initial');
+    if (menuAvatar) menuAvatar.textContent = initial;
+
+    const menuName = document.getElementById('profile-menu-name');
+    if (menuName) menuName.textContent = displayName;
+
+    const menuEmail = document.getElementById('profile-menu-email');
+    if (menuEmail) menuEmail.textContent = userEmail || '';
+
+    const signoutIcon = document.getElementById('profile-signout-icon');
+    if (signoutIcon) signoutIcon.innerHTML = Icons.logOut(14);
+
+    const signoutLbl = document.getElementById('lbl-profile-signout');
+    if (signoutLbl) signoutLbl.textContent = t('auth.signout');
   }
 }
 

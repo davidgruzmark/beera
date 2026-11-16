@@ -2,7 +2,7 @@ import { store } from '../store';
 import { t } from '../i18n';
 import { Project, Sprint, Task, TaskStatus, TaskType } from '../types';
 import { Icons } from './Icons';
-import { escapeHtml, renderMemberAvatarsStack } from '../utils';
+import { escapeHtml } from '../utils';
 
 export class Backlog {
   private container: HTMLElement | null = null;
@@ -259,7 +259,6 @@ export class Backlog {
         </div>
 
         <div class="content-header-actions">
-          ${renderMemberAvatarsStack(project.members)}
           <button type="button" class="btn btn-secondary" id="btn-backlog-share" style="padding: 8px 14px; font-size: 0.85rem;">
             ${Icons.users(15)}
             <span>${t('share.btn')}</span>

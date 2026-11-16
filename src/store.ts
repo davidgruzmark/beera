@@ -1122,6 +1122,17 @@ class AppStore {
     };
 
     project.tasks.push(newTask);
+
+    // Ensure the newly created task is visible on the default board view:
+    // If assignee filter is filtering out unassigned tasks, reset it to 'all'
+    if (this.state.filters.assignee !== 'all' && !newTask.assigneeId) {
+      this.state.filters.assignee = 'all';
+    }
+    // If in sprint mode without an active sprint, reset scope to 'all' so tasks are visible
+    if (this.state.filters.boardScope === 'active_sprint' && !activeSprint) {
+      this.state.filters.boardScope = 'all';
+    }
+
     this.saveLocalCache();
     this.notify();
 

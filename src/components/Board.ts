@@ -2,7 +2,7 @@ import { store } from '../store';
 import { t } from '../i18n';
 import { Task, TaskPriority, TaskStatus, TaskType, AppFilters, Project } from '../types';
 import { Icons } from './Icons';
-import { escapeHtml, getSprintDaysRemaining, renderMemberAvatarsStack } from '../utils';
+import { escapeHtml, getSprintDaysRemaining } from '../utils';
 
 export class Board {
   private container: HTMLElement | null = null;
@@ -61,19 +61,35 @@ export class Board {
     const allTags = new Set<string>();
     project.tasks.forEach(task => task.tags.forEach(tag => allTags.add(tag)));
 
-    const tagOptions = Array.from(allTags)
+    const tagItemButtons = Array.from(allTags)
       .map(
         tag =>
-          `<option value="${escapeHtml(tag)}" ${state.filters.tag === tag ? 'selected' : ''}>${escapeHtml(tag)}</option>`
+          `<button type="button" class="beera-dropdown-item ${state.filters.tag === tag ? 'active' : ''}" data-value="${escapeHtml(tag)}">${escapeHtml(tag)}</button>`
       )
       .join('');
 
-    const memberOptions = project.members
+    const memberItemButtons = project.members
       .map(
         m =>
-          `<option value="${escapeHtml(m.userId)}" ${state.filters.assignee === m.userId ? 'selected' : ''}>${escapeHtml(m.profile.displayName)}</option>`
+          `<button type="button" class="beera-dropdown-item ${state.filters.assignee === m.userId ? 'active' : ''}" data-value="${escapeHtml(m.userId)}">${escapeHtml(m.profile.displayName)}</button>`
       )
       .join('');
+
+    // Selected labels for dropdown triggers
+    let selectedPriorityLabel = t('board.filter.priority');
+    if (state.filters.priority !== 'all') {
+      selectedPriorityLabel = t('priority.' + state.filters.priority);
+    }
+
+    const selectedTagLabel = state.filters.tag === 'all' ? t('board.filter.tag') : state.filters.tag;
+
+    let selectedAssigneeLabel = t('board.filter.assignee');
+    if (state.filters.assignee === 'me') {
+      selectedAssigneeLabel = t('board.filter.myTasks');
+    } else if (state.filters.assignee !== 'all') {
+      const assignedMember = project.members.find(m => m.userId === state.filters.assignee);
+      if (assignedMember) selectedAssigneeLabel = assignedMember.profile.displayName;
+    }
 
     // Active Sprint Banner (shown when boardScope === 'active_sprint')
     let sprintBannerHtml = '';
@@ -141,7 +157,6 @@ export class Board {
               ${t('board.mode.sprint')}
             </button>
           </div>
-          ${renderMemberAvatarsStack(project.members)}
           <button type="button" class="btn btn-secondary" id="btn-board-share" style="padding: 8px 14px; font-size: 0.85rem;">
             ${Icons.users(15)}
             <span>${t('share.btn')}</span>
@@ -151,7 +166,7 @@ export class Board {
 
       ${sprintBannerHtml}
 
-      <!-- Toolbar with Search and Filters -->
+      <!-- Toolbar with Search and Custom Filters (Centered Arrows & Opens Below) -->
       <div class="toolbar">
         <div class="toolbar-filters">
           <div class="search-input-wrapper">
@@ -165,24 +180,42 @@ export class Board {
             />
           </div>
 
-          <select class="select-filter" id="filter-priority">
-            <option value="all" ${state.filters.priority === 'all' ? 'selected' : ''}>${t('board.filter.priority')}</option>
-            <option value="low" ${state.filters.priority === 'low' ? 'selected' : ''}>${t('priority.low')}</option>
-            <option value="medium" ${state.filters.priority === 'medium' ? 'selected' : ''}>${t('priority.medium')}</option>
-            <option value="high" ${state.filters.priority === 'high' ? 'selected' : ''}>${t('priority.high')}</option>
-            <option value="urgent" ${state.filters.priority === 'urgent' ? 'selected' : ''}>${t('priority.urgent')}</option>
-          </select>
+          <div class="beera-dropdown" id="dropdown-filter-priority">
+            <button type="button" class="beera-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="beera-dropdown-label">${escapeHtml(selectedPriorityLabel)}</span>
+              <span class="beera-dropdown-arrow">${Icons.chevronDown(13)}</span>
+            </button>
+            <div class="beera-dropdown-menu" role="listbox">
+              <button type="button" class="beera-dropdown-item ${state.filters.priority === 'all' ? 'active' : ''}" data-value="all">${t('board.filter.priority')}</button>
+              <button type="button" class="beera-dropdown-item ${state.filters.priority === 'low' ? 'active' : ''}" data-value="low">${t('priority.low')}</button>
+              <button type="button" class="beera-dropdown-item ${state.filters.priority === 'medium' ? 'active' : ''}" data-value="medium">${t('priority.medium')}</button>
+              <button type="button" class="beera-dropdown-item ${state.filters.priority === 'high' ? 'active' : ''}" data-value="high">${t('priority.high')}</button>
+              <button type="button" class="beera-dropdown-item ${state.filters.priority === 'urgent' ? 'active' : ''}" data-value="urgent">${t('priority.urgent')}</button>
+            </div>
+          </div>
 
-          <select class="select-filter" id="filter-tag">
-            <option value="all" ${state.filters.tag === 'all' ? 'selected' : ''}>${t('board.filter.tag')}</option>
-            ${tagOptions}
-          </select>
+          <div class="beera-dropdown" id="dropdown-filter-tag">
+            <button type="button" class="beera-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="beera-dropdown-label">${escapeHtml(selectedTagLabel)}</span>
+              <span class="beera-dropdown-arrow">${Icons.chevronDown(13)}</span>
+            </button>
+            <div class="beera-dropdown-menu" role="listbox">
+              <button type="button" class="beera-dropdown-item ${state.filters.tag === 'all' ? 'active' : ''}" data-value="all">${t('board.filter.tag')}</button>
+              ${tagItemButtons}
+            </div>
+          </div>
 
-          <select class="select-filter" id="filter-assignee">
-            <option value="all" ${state.filters.assignee === 'all' ? 'selected' : ''}>${t('board.filter.assignee')}</option>
-            ${currentUserId ? `<option value="me" ${state.filters.assignee === 'me' ? 'selected' : ''}>${t('board.filter.myTasks')}</option>` : ''}
-            ${memberOptions}
-          </select>
+          <div class="beera-dropdown" id="dropdown-filter-assignee">
+            <button type="button" class="beera-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false">
+              <span class="beera-dropdown-label">${escapeHtml(selectedAssigneeLabel)}</span>
+              <span class="beera-dropdown-arrow">${Icons.chevronDown(13)}</span>
+            </button>
+            <div class="beera-dropdown-menu" role="listbox">
+              <button type="button" class="beera-dropdown-item ${state.filters.assignee === 'all' ? 'active' : ''}" data-value="all">${t('board.filter.assignee')}</button>
+              ${currentUserId ? `<button type="button" class="beera-dropdown-item ${state.filters.assignee === 'me' ? 'active' : ''}" data-value="me">${t('board.filter.myTasks')}</button>` : ''}
+              ${memberItemButtons}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -475,32 +508,57 @@ export class Board {
       });
     }
 
-    // Priority filter
-    const prioritySelect = this.container.querySelector('#filter-priority');
-    if (prioritySelect) {
-      prioritySelect.addEventListener('change', (e) => {
-        const val = (e.target as HTMLSelectElement).value as TaskPriority | 'all';
+    // Custom Dropdown Trigger toggles
+    this.container.querySelectorAll('.beera-dropdown').forEach(dropdown => {
+      const trigger = dropdown.querySelector('.beera-dropdown-trigger');
+      trigger?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = dropdown.classList.contains('open');
+        this.container?.querySelectorAll('.beera-dropdown.open').forEach(d => {
+          if (d !== dropdown) {
+            d.classList.remove('open');
+            d.querySelector('.beera-dropdown-trigger')?.setAttribute('aria-expanded', 'false');
+          }
+        });
+        dropdown.classList.toggle('open', !isOpen);
+        trigger.setAttribute('aria-expanded', String(!isOpen));
+      });
+    });
+
+    // Close open dropdowns when clicking anywhere outside
+    const handleOutsideClick = (e: MouseEvent) => {
+      this.container?.querySelectorAll('.beera-dropdown.open').forEach(d => {
+        if (!d.contains(e.target as Node)) {
+          d.classList.remove('open');
+          d.querySelector('.beera-dropdown-trigger')?.setAttribute('aria-expanded', 'false');
+        }
+      });
+    };
+    document.addEventListener('click', handleOutsideClick);
+
+    // Custom Priority filter items
+    this.container.querySelectorAll('#dropdown-filter-priority .beera-dropdown-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const val = item.getAttribute('data-value') as TaskPriority | 'all';
         store.setFilters({ priority: val });
       });
-    }
+    });
 
-    // Tag filter
-    const tagSelect = this.container.querySelector('#filter-tag');
-    if (tagSelect) {
-      tagSelect.addEventListener('change', (e) => {
-        const val = (e.target as HTMLSelectElement).value;
+    // Custom Tag filter items
+    this.container.querySelectorAll('#dropdown-filter-tag .beera-dropdown-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const val = item.getAttribute('data-value') || 'all';
         store.setFilters({ tag: val });
       });
-    }
+    });
 
-    // Assignee filter
-    const assigneeSelect = this.container.querySelector('#filter-assignee');
-    if (assigneeSelect) {
-      assigneeSelect.addEventListener('change', (e) => {
-        const val = (e.target as HTMLSelectElement).value;
+    // Custom Assignee filter items
+    this.container.querySelectorAll('#dropdown-filter-assignee .beera-dropdown-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const val = item.getAttribute('data-value') || 'all';
         store.setFilters({ assignee: val });
       });
-    }
+    });
 
     // Task Card Click (to edit/view details)
     this.container.querySelectorAll('.task-card').forEach(card => {
