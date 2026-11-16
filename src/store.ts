@@ -370,7 +370,14 @@ class AppStore {
   }
 
   public async signUp(email: string, password: string): Promise<{ error: string | null; needsConfirmation: boolean }> {
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectUrl
+      }
+    });
     if (error) {
       return { error: error.message, needsConfirmation: false };
     }
