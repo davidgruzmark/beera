@@ -2,8 +2,10 @@ import { store } from './store';
 import { t } from './i18n';
 import { Sidebar } from './components/Sidebar';
 import { Board } from './components/Board';
+import { Backlog } from './components/Backlog';
 import { Dashboard } from './components/Dashboard';
 import { TaskModal } from './components/TaskModal';
+import { ShareModal } from './components/ShareModal';
 import { AuthModal } from './components/AuthModal';
 import { Icons } from './components/Icons';
 import { escapeHtml } from './utils';
@@ -12,17 +14,21 @@ import { SyncStatus } from './types';
 class App {
   private sidebar: Sidebar;
   private board: Board;
+  private backlog: Backlog;
   private dashboard: Dashboard;
   private taskModal: TaskModal;
+  private shareModal: ShareModal;
   private authModal: AuthModal;
 
-  private currentMountedView: 'board' | 'dashboard' | null = null;
+  private currentMountedView: 'board' | 'backlog' | 'dashboard' | null = null;
 
   constructor() {
     this.sidebar = new Sidebar();
     this.board = new Board();
+    this.backlog = new Backlog();
     this.dashboard = new Dashboard();
     this.taskModal = new TaskModal();
+    this.shareModal = new ShareModal();
     this.authModal = new AuthModal();
   }
 
@@ -43,6 +49,12 @@ class App {
     const taskModalBackdrop = document.getElementById('task-modal-backdrop');
     if (taskModalBackdrop) {
       this.taskModal.mount(taskModalBackdrop);
+    }
+
+    // Mount Project Share / Team Modal
+    const shareModalBackdrop = document.getElementById('share-modal-backdrop');
+    if (shareModalBackdrop) {
+      this.shareModal.mount(shareModalBackdrop);
     }
 
     // Mount Authentication Modal
@@ -97,10 +109,10 @@ class App {
   }
 
   /**
-   * Switches views (Kanban Board vs. Dashboard) based on state.
+   * Switches views (Kanban Board vs. Backlog & Sprints vs. Dashboard) based on state.
    * Cleans up the previous component to avoid memory leaks.
    */
-  private updateView(view: 'board' | 'dashboard') {
+  private updateView(view: 'board' | 'backlog' | 'dashboard') {
     if (this.currentMountedView === view) return;
 
     const contentMount = document.getElementById('content-mount');
@@ -109,6 +121,8 @@ class App {
     // Unmount active view
     if (this.currentMountedView === 'board') {
       this.board.unmount();
+    } else if (this.currentMountedView === 'backlog') {
+      this.backlog.unmount();
     } else if (this.currentMountedView === 'dashboard') {
       this.dashboard.unmount();
     }
@@ -116,6 +130,8 @@ class App {
     // Mount new view
     if (view === 'board') {
       this.board.mount(contentMount);
+    } else if (view === 'backlog') {
+      this.backlog.mount(contentMount);
     } else {
       this.dashboard.mount(contentMount);
     }

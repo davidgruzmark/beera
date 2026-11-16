@@ -20,6 +20,7 @@ export class Dashboard {
       this.unsubscribe();
       this.unsubscribe = null;
     }
+    this.container = null;
   }
 
   private render() {
@@ -81,13 +82,49 @@ export class Dashboard {
     };
 
     const isRtl = store.getState().language === 'he';
+    const activeSprint = store.getActiveSprint(project);
+
+    const totalStoryPoints = tasks.reduce((sum, task) => sum + (task.storyPoints || 0), 0);
+    const doneStoryPoints = tasks
+      .filter(task => task.status === 'done')
+      .reduce((sum, task) => sum + (task.storyPoints || 0), 0);
+
+    const activeSprintTasks = activeSprint
+      ? tasks.filter(task => task.sprintId === activeSprint.id)
+      : [];
+    const activeSprintDoneCount = activeSprintTasks.filter(task => task.status === 'done').length;
+    const activeSprintPct =
+      activeSprintTasks.length > 0
+        ? Math.round((activeSprintDoneCount / activeSprintTasks.length) * 100)
+        : 0;
+
+    const workloadHtml = project.members
+      .map(member => {
+        const assigned = tasks.filter(task => task.assigneeId === member.userId);
+        const doneCount = assigned.filter(task => task.status === 'done').length;
+        const pts = assigned.reduce((sum, task) => sum + (task.storyPoints || 0), 0);
+        const initial = (member.profile.displayName || member.profile.email).charAt(0).toUpperCase();
+        return `
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); border-radius: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span class="card-assignee-chip" style="background: ${escapeHtml(member.profile.avatarColor || '#f59e0b')};">${escapeHtml(initial)}</span>
+              <span style="font-weight: 600; font-size: 0.9rem;">${escapeHtml(member.profile.displayName)}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: var(--text-secondary);">
+              <span>${doneCount}/${assigned.length} ${t('sprint.tasksCount')}</span>
+              <span class="story-points-badge">${pts} ${t('sprint.points')}</span>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
 
     this.container.innerHTML = `
       <div class="content-header">
         <div class="project-details-title">
-          <span>${project.icon}</span>
-          <span>${project.name}</span>
-          <span class="project-key-title">${project.key}</span>
+          <span>${escapeHtml(project.icon)}</span>
+          <span>${escapeHtml(project.name)}</span>
+          <span class="project-key-title">${escapeHtml(project.key)}</span>
         </div>
       </div>
 
@@ -164,6 +201,40 @@ export class Dashboard {
                 class="time-progress-bar-fill" 
                 style="height: 100%; border-radius: 6px; width: ${totalEst > 0 ? Math.min(Math.round((totalLogged/totalEst)*100), 100) : 0}%; background: var(--accent);"
               ></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Agile Sprint & Team Workload Summary -->
+        <div class="charts-grid">
+          <div class="stat-card" style="flex-direction: column; align-items: stretch; gap: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-weight: 700; display: inline-flex; align-items: center; gap: 8px;">
+                <span style="color: var(--primary); display: flex;">${Icons.sprint(16)}</span>
+                <span>${t('dash.activeSprint')}</span>
+              </span>
+              <span class="story-points-badge">${doneStoryPoints}/${totalStoryPoints} ${t('sprint.points')} (${t('dash.storyPointsDone')})</span>
+            </div>
+            ${
+              activeSprint
+                ? `
+                  <div style="font-size: 0.95rem; font-weight: 600;">${escapeHtml(activeSprint.name)}</div>
+                  <div style="font-size: 0.84rem; color: var(--text-secondary);">${activeSprintDoneCount}/${activeSprintTasks.length} ${t('sprint.tasksCount')} (${activeSprintPct}%)</div>
+                  <div class="time-progress-bar-bg" style="height: 10px; border-radius: 6px;">
+                    <div class="time-progress-bar-fill" style="height: 100%; border-radius: 6px; width: ${activeSprintPct}%; background: var(--primary);"></div>
+                  </div>
+                `
+                : `<div style="font-size: 0.88rem; color: var(--text-muted);">${t('board.sprint.none')}</div>`
+            }
+          </div>
+
+          <div class="stat-card" style="flex-direction: column; align-items: stretch; gap: 12px;">
+            <div style="font-weight: 700; display: inline-flex; align-items: center; gap: 8px;">
+              <span style="color: var(--primary); display: flex;">${Icons.users(16)}</span>
+              <span>${t('dash.teamWorkload')}</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              ${workloadHtml || `<span style="font-size: 0.88rem; color: var(--text-muted);">${t('task.modal.unassigned')}</span>`}
             </div>
           </div>
         </div>

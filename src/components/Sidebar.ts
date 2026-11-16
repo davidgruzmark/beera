@@ -63,6 +63,10 @@ export class Sidebar {
           <span style="display: flex; color: currentColor;">${Icons.board(18)}</span>
           <span>${t('nav.board')}</span>
         </div>
+        <div class="nav-item ${activeView === 'backlog' ? 'active' : ''}" data-view="backlog">
+          <span style="display: flex; color: currentColor;">${Icons.layers(18)}</span>
+          <span>${t('nav.backlog')}</span>
+        </div>
         <div class="nav-item ${activeView === 'dashboard' ? 'active' : ''}" data-view="dashboard">
           <span style="display: flex; color: currentColor;">${Icons.dashboard(18)}</span>
           <span>${t('nav.dashboard')}</span>
@@ -112,10 +116,10 @@ export class Sidebar {
   private bindEvents() {
     if (!this.container) return;
 
-    // View switcher (board vs dashboard)
+    // View switcher (board vs backlog vs dashboard)
     this.container.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', () => {
-        const view = item.getAttribute('data-view') as 'board' | 'dashboard';
+        const view = item.getAttribute('data-view') as 'board' | 'backlog' | 'dashboard';
         store.setView(view);
       });
     });

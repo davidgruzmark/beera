@@ -1,6 +1,6 @@
 import { store } from '../store';
 import { t } from '../i18n';
-import { Task, TaskPriority, TaskStatus, SubTask, Comment } from '../types';
+import { Task, TaskPriority, TaskStatus, TaskType, SubTask, Comment } from '../types';
 import { Icons } from './Icons';
 import { escapeHtml } from '../utils';
 
@@ -100,6 +100,34 @@ export class TaskModal {
       `;
     });
 
+    const sprintOptions = [
+      `<option value="" ${!task.sprintId ? 'selected' : ''}>${t('sprint.noSprint')}</option>`,
+      ...(project?.sprints || [])
+        .filter(s => s.status !== 'completed' || s.id === task.sprintId)
+        .map(
+          s =>
+            `<option value="${escapeHtml(s.id)}" ${task.sprintId === s.id ? 'selected' : ''}>${escapeHtml(s.name)} (${t('sprint.status.' + s.status)})</option>`
+        )
+    ].join('');
+
+    const assigneeOptions = [
+      `<option value="" ${!task.assigneeId ? 'selected' : ''}>${t('task.modal.unassigned')}</option>`,
+      ...(project?.members || []).map(
+        m =>
+          `<option value="${escapeHtml(m.userId)}" ${task.assigneeId === m.userId ? 'selected' : ''}>${escapeHtml(m.profile.displayName)} (${escapeHtml(m.profile.email)})</option>`
+      )
+    ].join('');
+
+    const pointValues = [0, 1, 2, 3, 5, 8, 13, 21];
+    const pointOptions = pointValues
+      .map(
+        pts =>
+          `<option value="${pts}" ${(task.storyPoints || 0) === pts ? 'selected' : ''}>${pts} ${t('sprint.points')}</option>`
+      )
+      .join('');
+
+    const taskType = task.taskType || 'task';
+
     this.backdrop.innerHTML = `
       <div class="modal-card">
         <div class="modal-header">
@@ -186,6 +214,17 @@ export class TaskModal {
             <div class="task-detail-aside">
               <div class="meta-aside-list">
                 
+                <!-- Issue Type Select -->
+                <div class="form-group">
+                  <label class="form-label">${t('task.modal.type')}</label>
+                  <select class="form-select" id="task-type-edit">
+                    <option value="task" ${taskType === 'task' ? 'selected' : ''}>${t('type.task')}</option>
+                    <option value="feature" ${taskType === 'feature' ? 'selected' : ''}>${t('type.feature')}</option>
+                    <option value="story" ${taskType === 'story' ? 'selected' : ''}>${t('type.story')}</option>
+                    <option value="bug" ${taskType === 'bug' ? 'selected' : ''}>${t('type.bug')}</option>
+                  </select>
+                </div>
+
                 <!-- Status Select -->
                 <div class="form-group">
                   <label class="form-label">${t('task.modal.status')}</label>
@@ -205,6 +244,30 @@ export class TaskModal {
                     <option value="medium" ${task.priority === 'medium' ? 'selected' : ''}>${t('priority.medium')}</option>
                     <option value="high" ${task.priority === 'high' ? 'selected' : ''}>${t('priority.high')}</option>
                     <option value="urgent" ${task.priority === 'urgent' ? 'selected' : ''}>${t('priority.urgent')}</option>
+                  </select>
+                </div>
+
+                <!-- Sprint Select -->
+                <div class="form-group">
+                  <label class="form-label">${t('task.modal.sprint')}</label>
+                  <select class="form-select" id="task-sprint-edit">
+                    ${sprintOptions}
+                  </select>
+                </div>
+
+                <!-- Assignee Select -->
+                <div class="form-group">
+                  <label class="form-label">${t('task.modal.assignee')}</label>
+                  <select class="form-select" id="task-assignee-edit">
+                    ${assigneeOptions}
+                  </select>
+                </div>
+
+                <!-- Story Points Select -->
+                <div class="form-group">
+                  <label class="form-label">${t('task.modal.storyPoints')}</label>
+                  <select class="form-select" id="task-points-edit">
+                    ${pointOptions}
                   </select>
                 </div>
 
@@ -316,11 +379,11 @@ export class TaskModal {
     });
 
     // Close on backdrop click (but not card click)
-    this.backdrop.addEventListener('click', (e) => {
+    this.backdrop.onclick = (e) => {
       if (e.target === this.backdrop) {
         this.close();
       }
-    });
+    };
 
     // Edit Title (on blur or keydown Enter)
     const titleInput = this.backdrop.querySelector('#task-title-edit') as HTMLInputElement;
@@ -345,6 +408,13 @@ export class TaskModal {
       }
     });
 
+    // Edit Issue Type
+    const typeSelect = this.backdrop.querySelector('#task-type-edit') as HTMLSelectElement;
+    typeSelect?.addEventListener('change', () => {
+      const taskType = typeSelect.value as TaskType;
+      store.updateTask(task.id, { taskType });
+    });
+
     // Edit Status
     const statusSelect = this.backdrop.querySelector('#task-status-edit') as HTMLSelectElement;
     statusSelect?.addEventListener('change', () => {
@@ -357,6 +427,27 @@ export class TaskModal {
     prioritySelect?.addEventListener('change', () => {
       const priority = prioritySelect.value as TaskPriority;
       store.updateTask(task.id, { priority });
+    });
+
+    // Edit Sprint
+    const sprintSelect = this.backdrop.querySelector('#task-sprint-edit') as HTMLSelectElement;
+    sprintSelect?.addEventListener('change', () => {
+      const sprintId = sprintSelect.value || null;
+      store.updateTask(task.id, { sprintId });
+    });
+
+    // Edit Assignee
+    const assigneeSelect = this.backdrop.querySelector('#task-assignee-edit') as HTMLSelectElement;
+    assigneeSelect?.addEventListener('change', () => {
+      const assigneeId = assigneeSelect.value || null;
+      store.updateTask(task.id, { assigneeId });
+    });
+
+    // Edit Story Points
+    const pointsSelect = this.backdrop.querySelector('#task-points-edit') as HTMLSelectElement;
+    pointsSelect?.addEventListener('change', () => {
+      const storyPoints = parseInt(pointsSelect.value, 10) || 0;
+      store.updateTask(task.id, { storyPoints });
     });
 
     // Edit Due Date
@@ -452,10 +543,15 @@ export class TaskModal {
     const submitComment = () => {
       const text = commentInput.value.trim();
       if (text) {
+        const currentState = store.getState();
+        const author =
+          currentState.currentUserProfile?.displayName ||
+          currentState.userEmail ||
+          (currentState.language === 'he' ? 'משתמש' : 'Member');
         const newComment: Comment = {
           id: 'comment-' + Date.now(),
           text,
-          author: store.getState().language === 'he' ? 'דוד (מנהל)' : 'David (Personal)',
+          author,
           timestamp: Date.now()
         };
         const comments = [newComment, ...task.comments];

@@ -1,8 +1,8 @@
 import { store } from '../store';
 import { t } from '../i18n';
-import { Task, TaskPriority, TaskStatus, AppFilters } from '../types';
+import { Task, TaskPriority, TaskStatus, TaskType, AppFilters, Project } from '../types';
 import { Icons } from './Icons';
-import { escapeHtml } from '../utils';
+import { escapeHtml, getSprintDaysRemaining, renderMemberAvatarsStack } from '../utils';
 
 export class Board {
   private container: HTMLElement | null = null;
@@ -21,10 +21,28 @@ export class Board {
       this.unsubscribe();
       this.unsubscribe = null;
     }
+    this.container = null;
+  }
+
+  private getTypeIcon(type: TaskType): string {
+    switch (type) {
+      case 'bug':
+        return Icons.bug(12);
+      case 'feature':
+        return Icons.feature(12);
+      case 'story':
+        return Icons.story(12);
+      default:
+        return Icons.checklist(12);
+    }
   }
 
   private render() {
     if (!this.container) return;
+
+    const activeEl = document.activeElement as HTMLInputElement | null;
+    const wasSearchFocused = activeEl?.id === 'board-search';
+    const searchCursorPos = wasSearchFocused ? activeEl.selectionStart : null;
 
     const state = store.getState();
     const project = store.getActiveProject();
@@ -36,13 +54,74 @@ export class Board {
 
     this.container.className = 'main-content';
 
-    // Get unique tags for filter dropdown
+    const activeSprint = store.getActiveSprint(project);
+    const currentUserId = store.getCurrentUserId();
+
+    // Unique tags for filter dropdown
     const allTags = new Set<string>();
-    project.tasks.forEach(t => t.tags.forEach(tag => allTags.add(tag)));
-    
-    const tagOptions = Array.from(allTags).map(tag => 
-      `<option value="${escapeHtml(tag)}" ${state.filters.tag === tag ? 'selected' : ''}>${escapeHtml(tag)}</option>`
-    ).join('');
+    project.tasks.forEach(task => task.tags.forEach(tag => allTags.add(tag)));
+
+    const tagOptions = Array.from(allTags)
+      .map(
+        tag =>
+          `<option value="${escapeHtml(tag)}" ${state.filters.tag === tag ? 'selected' : ''}>${escapeHtml(tag)}</option>`
+      )
+      .join('');
+
+    const memberOptions = project.members
+      .map(
+        m =>
+          `<option value="${escapeHtml(m.userId)}" ${state.filters.assignee === m.userId ? 'selected' : ''}>${escapeHtml(m.profile.displayName)}</option>`
+      )
+      .join('');
+
+    // Active Sprint Banner (shown when boardScope === 'active_sprint')
+    let sprintBannerHtml = '';
+    if (state.filters.boardScope === 'active_sprint') {
+      if (activeSprint) {
+        const sprintTasks = project.tasks.filter(task => task.sprintId === activeSprint.id);
+        const totalPts = sprintTasks.reduce((s, item) => s + (item.storyPoints || 0), 0);
+        const donePts = sprintTasks
+          .filter(item => item.status === 'done')
+          .reduce((s, item) => s + (item.storyPoints || 0), 0);
+        const daysLeft = getSprintDaysRemaining(activeSprint);
+        const daysLabel =
+          daysLeft === null
+            ? ''
+            : daysLeft >= 0
+            ? `${daysLeft} ${t('board.sprint.daysLeft')}`
+            : t('board.sprint.overdue');
+
+        sprintBannerHtml = `
+          <div class="sprint-banner">
+            <div class="sprint-banner-info">
+              <span class="sprint-status-pill sprint-status-active">${t('sprint.status.active')}</span>
+              <strong style="font-size: 0.98rem;">${escapeHtml(activeSprint.name)}</strong>
+              ${activeSprint.goal ? `<span style="color: var(--text-secondary); font-size: 0.85rem;">— ${escapeHtml(activeSprint.goal)}</span>` : ''}
+            </div>
+            <div class="sprint-banner-meta">
+              ${daysLabel ? `<span>${escapeHtml(daysLabel)}</span>` : ''}
+              <span class="story-points-badge">${donePts}/${totalPts} ${t('sprint.points')}</span>
+              <button type="button" class="btn btn-secondary" id="btn-board-complete-sprint" data-sprint-id="${escapeHtml(activeSprint.id)}" style="padding: 5px 10px; font-size: 0.78rem;">
+                ${t('sprint.complete')}
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        sprintBannerHtml = `
+          <div class="sprint-banner">
+            <div class="sprint-banner-info">
+              <span style="color: var(--primary); display: flex;">${Icons.sprint(16)}</span>
+              <span style="font-size: 0.88rem; color: var(--text-secondary);">${t('board.sprint.none')}</span>
+            </div>
+            <button type="button" class="btn btn-secondary" id="btn-go-backlog" style="padding: 5px 12px; font-size: 0.8rem;">
+              ${t('nav.backlog')}
+            </button>
+          </div>
+        `;
+      }
+    }
 
     // Headers and Toolbar HTML
     let html = `
@@ -52,7 +131,25 @@ export class Board {
           <span>${escapeHtml(project.name)}</span>
           <span class="project-key-title">${escapeHtml(project.key)}</span>
         </div>
+
+        <div class="content-header-actions">
+          <div class="board-mode-switcher">
+            <button type="button" class="mode-pill ${state.filters.boardScope === 'all' ? 'active' : ''}" data-scope="all">
+              ${t('board.mode.all')}
+            </button>
+            <button type="button" class="mode-pill ${state.filters.boardScope === 'active_sprint' ? 'active' : ''}" data-scope="active_sprint">
+              ${t('board.mode.sprint')}
+            </button>
+          </div>
+          ${renderMemberAvatarsStack(project.members)}
+          <button type="button" class="btn btn-secondary" id="btn-board-share" style="padding: 8px 14px; font-size: 0.85rem;">
+            ${Icons.users(15)}
+            <span>${t('share.btn')}</span>
+          </button>
+        </div>
       </div>
+
+      ${sprintBannerHtml}
 
       <!-- Toolbar with Search and Filters -->
       <div class="toolbar">
@@ -80,6 +177,12 @@ export class Board {
             <option value="all" ${state.filters.tag === 'all' ? 'selected' : ''}>${t('board.filter.tag')}</option>
             ${tagOptions}
           </select>
+
+          <select class="select-filter" id="filter-assignee">
+            <option value="all" ${state.filters.assignee === 'all' ? 'selected' : ''}>${t('board.filter.assignee')}</option>
+            ${currentUserId ? `<option value="me" ${state.filters.assignee === 'me' ? 'selected' : ''}>${t('board.filter.myTasks')}</option>` : ''}
+            ${memberOptions}
+          </select>
         </div>
       </div>
 
@@ -96,14 +199,19 @@ export class Board {
     ];
 
     // Filter tasks
-    const filteredTasks = this.getFilteredTasks(project.tasks, state.filters);
+    const filteredTasks = this.getFilteredTasks(
+      project.tasks,
+      state.filters,
+      activeSprint?.id,
+      currentUserId
+    );
 
     columns.forEach(col => {
       const colTasks = filteredTasks.filter(task => task.status === col.id);
-      
+
       let cardsHtml = '';
       colTasks.forEach(task => {
-        cardsHtml += this.renderTaskCard(task);
+        cardsHtml += this.renderTaskCard(task, project);
       });
 
       html += `
@@ -140,6 +248,17 @@ export class Board {
     `;
 
     this.container.innerHTML = html;
+
+    if (wasSearchFocused) {
+      const searchInput = this.container.querySelector('#board-search') as HTMLInputElement | null;
+      if (searchInput) {
+        searchInput.focus();
+        if (searchCursorPos !== null) {
+          searchInput.setSelectionRange(searchCursorPos, searchCursorPos);
+        }
+      }
+    }
+
     this.bindEvents();
   }
 
@@ -165,12 +284,23 @@ export class Board {
     }
   }
 
-  private getFilteredTasks(tasks: Task[], filters: AppFilters): Task[] {
+  private getFilteredTasks(
+    tasks: Task[],
+    filters: AppFilters,
+    activeSprintId?: string,
+    currentUserId?: string | null
+  ): Task[] {
     return tasks.filter(task => {
+      // Sprint scope filter when active sprint exists
+      if (filters.boardScope === 'active_sprint' && activeSprintId) {
+        if (task.sprintId !== activeSprintId) return false;
+      }
+
       // Search text match
       const query = filters.search.toLowerCase().trim();
-      const matchesSearch = query === '' || 
-        task.title.toLowerCase().includes(query) || 
+      const matchesSearch =
+        query === '' ||
+        task.title.toLowerCase().includes(query) ||
         task.description.toLowerCase().includes(query) ||
         task.id.toLowerCase().includes(query);
 
@@ -180,11 +310,19 @@ export class Board {
       // Tag match
       const matchesTag = filters.tag === 'all' || task.tags.includes(filters.tag);
 
-      return matchesSearch && matchesPriority && matchesTag;
+      // Assignee match
+      let matchesAssignee = true;
+      if (filters.assignee === 'me') {
+        matchesAssignee = Boolean(currentUserId && task.assigneeId === currentUserId);
+      } else if (filters.assignee !== 'all') {
+        matchesAssignee = task.assigneeId === filters.assignee;
+      }
+
+      return matchesSearch && matchesPriority && matchesTag && matchesAssignee;
     });
   }
 
-  private renderTaskCard(task: Task): string {
+  private renderTaskCard(task: Task, project: Project): string {
     // Due Date alert
     let dueDateHtml = '';
     if (task.dueDate) {
@@ -193,7 +331,7 @@ export class Board {
       dueDateHtml = `
         <div class="due-date-indicator ${isOverdue ? 'overdue' : ''}" style="display: inline-flex; align-items: center; gap: 4px;">
           <span style="display: flex;">${Icons.calendar(12)}</span>
-          <span>${task.dueDate}</span>
+          <span>${escapeHtml(task.dueDate)}</span>
           ${isOverdue ? `<span style="color: hsl(var(--hsl-urgent)); display: flex;">${Icons.alert(12)}</span>` : ''}
         </div>
       `;
@@ -240,6 +378,18 @@ export class Board {
       `;
     }
 
+    // Story points badge
+    const pointsHtml =
+      task.storyPoints > 0
+        ? `<span class="story-points-badge" title="${t('task.modal.storyPoints')}">${task.storyPoints}</span>`
+        : '';
+
+    // Assignee avatar chip
+    const assignee = project.members.find(m => m.userId === task.assigneeId)?.profile;
+    const assigneeHtml = assignee
+      ? `<span class="card-assignee-chip" style="background: ${escapeHtml(assignee.avatarColor || '#f59e0b')};" title="${escapeHtml(assignee.displayName)}">${escapeHtml((assignee.displayName || assignee.email).charAt(0).toUpperCase())}</span>`
+      : '';
+
     // Tags
     let tagsHtml = '';
     if (task.tags.length > 0) {
@@ -250,10 +400,17 @@ export class Board {
       tagsHtml += `</div>`;
     }
 
+    const taskType = task.taskType || 'task';
+
     return `
       <div class="task-card" draggable="true" data-task-id="${escapeHtml(task.id)}">
         <div class="task-card-header">
-          <span class="task-card-key">${escapeHtml(task.id)}</span>
+          <div class="task-card-badges">
+            <span class="badge-type badge-type-${escapeHtml(taskType)}" title="${t('type.' + taskType)}">
+              ${this.getTypeIcon(taskType)}
+            </span>
+            <span class="task-card-key">${escapeHtml(task.id)}</span>
+          </div>
           <span class="badge-priority badge-priority-${escapeHtml(task.priority)}">
             ${t('priority.' + task.priority)}
           </span>
@@ -266,9 +423,11 @@ export class Board {
 
         <div class="task-card-meta">
           ${dueDateHtml}
-          <div style="display: flex; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 8px; margin-inline-start: auto;">
             ${timeHtml}
             ${commentsHtml}
+            ${pointsHtml}
+            ${assigneeHtml}
           </div>
         </div>
       </div>
@@ -277,6 +436,35 @@ export class Board {
 
   private bindEvents() {
     if (!this.container) return;
+
+    // Mode switcher (All Tasks vs Active Sprint)
+    this.container.querySelectorAll('.mode-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const scope = btn.getAttribute('data-scope') as 'all' | 'active_sprint';
+        if (scope) {
+          store.setFilters({ boardScope: scope });
+        }
+      });
+    });
+
+    // Share / Team button
+    this.container.querySelector('#btn-board-share')?.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('open-share-modal'));
+    });
+
+    // Go to Backlog CTA
+    this.container.querySelector('#btn-go-backlog')?.addEventListener('click', () => {
+      store.setView('backlog');
+    });
+
+    // Complete Sprint CTA
+    const completeBtn = this.container.querySelector('#btn-board-complete-sprint');
+    completeBtn?.addEventListener('click', () => {
+      const sprintId = completeBtn.getAttribute('data-sprint-id');
+      if (sprintId && confirm(t('sprint.complete.confirm'))) {
+        store.completeSprint(sprintId);
+      }
+    });
 
     // Search filter
     const searchInput = this.container.querySelector('#board-search');
@@ -302,6 +490,15 @@ export class Board {
       tagSelect.addEventListener('change', (e) => {
         const val = (e.target as HTMLSelectElement).value;
         store.setFilters({ tag: val });
+      });
+    }
+
+    // Assignee filter
+    const assigneeSelect = this.container.querySelector('#filter-assignee');
+    if (assigneeSelect) {
+      assigneeSelect.addEventListener('change', (e) => {
+        const val = (e.target as HTMLSelectElement).value;
+        store.setFilters({ assignee: val });
       });
     }
 
@@ -349,7 +546,7 @@ export class Board {
 
     this.container.querySelectorAll('.column').forEach(column => {
       column.addEventListener('dragover', (e) => {
-        e.preventDefault(); // necessary to allow drop
+        e.preventDefault();
         const dragEvent = e as DragEvent;
         if (dragEvent.dataTransfer) {
           dragEvent.dataTransfer.dropEffect = 'move';
@@ -367,16 +564,15 @@ export class Board {
         const dragEvent = e as DragEvent;
         const taskId = dragEvent.dataTransfer?.getData('text/plain') || this.activeDragTaskId;
         const targetStatus = column.getAttribute('data-column-status') as TaskStatus;
-        
+
         if (taskId && targetStatus) {
-          // If dropped directly on another card in that list, we can place it near it
           const dropTargetCard = (e.target as HTMLElement).closest('.task-card');
           if (dropTargetCard) {
             const targetTaskId = dropTargetCard.getAttribute('data-task-id');
             const project = store.getActiveProject();
             if (project && targetTaskId) {
-              const colTasks = project.tasks.filter(t => t.status === targetStatus);
-              const targetIndex = colTasks.findIndex(t => t.id === targetTaskId);
+              const colTasks = project.tasks.filter(item => item.status === targetStatus);
+              const targetIndex = colTasks.findIndex(item => item.id === targetTaskId);
               store.moveTask(taskId, targetStatus, targetIndex);
               return;
             }
