@@ -1,6 +1,6 @@
 export type TaskStatus = 'todo' | 'inprogress' | 'review' | 'done';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
-export type SyncStatus = 'synced' | 'syncing' | 'offline';
+export type SyncStatus = 'synced' | 'syncing' | 'offline' | 'unauthenticated';
 
 export interface SubTask {
   id: string;
@@ -56,4 +56,5 @@ export interface AppState {
   theme: 'dark' | 'light';
   filters: AppFilters;
   syncStatus?: SyncStatus;
+  userEmail?: string | null;
 }

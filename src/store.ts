@@ -1,6 +1,7 @@
 import { AppState, Project, SyncStatus, Task, TaskPriority, TaskStatus } from './types';
 import { setLanguage } from './i18n';
 import { isSupabaseConfigured, supabase } from './supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 type StoreSubscriber = (state: AppState) => void;
 
@@ -8,6 +9,7 @@ const STORAGE_KEY = 'antigravity_jira_state';
 
 interface DbProjectRow {
   id: string;
+  user_id?: string | null;
   name: string;
   key: string;
   description: string;
@@ -18,6 +20,7 @@ interface DbProjectRow {
 
 interface DbTaskRow {
   id: string;
+  user_id?: string | null;
   project_id: string;
   project_key: string;
   task_num: number;
@@ -187,9 +190,10 @@ const defaultProjects: Project[] = [
   }
 ];
 
-function mapTaskToRow(task: Task, projectId: string, position: number): DbTaskRow {
+function mapTaskToRow(task: Task, projectId: string, position: number, userId: string): DbTaskRow {
   return {
     id: task.id,
+    user_id: userId,
     project_id: projectId,
     project_key: task.projectKey,
     task_num: task.taskNum,
@@ -233,12 +237,14 @@ class AppStore {
   private state: AppState;
   private subscribers: Set<StoreSubscriber> = new Set();
   private isApplyingRemote = false;
+  private currentUserId: string | null = null;
+  private realtimeChannel: RealtimeChannel | null = null;
 
   constructor() {
     this.state = this.loadState();
     setLanguage(this.state.language);
     this.applyTheme(this.state.theme);
-    void this.initCloudSync();
+    void this.initAuthAndSync();
   }
 
   private loadState(): AppState {
@@ -249,7 +255,8 @@ class AppStore {
         if (parsed.projects && Array.isArray(parsed.projects) && parsed.activeProjectId !== undefined) {
           return {
             ...parsed,
-            syncStatus: 'syncing'
+            syncStatus: 'unauthenticated',
+            userEmail: null
           };
         }
       }
@@ -268,7 +275,8 @@ class AppStore {
         priority: 'all',
         tag: 'all'
       },
-      syncStatus: 'syncing'
+      syncStatus: 'unauthenticated',
+      userEmail: null
     };
   }
 
@@ -288,22 +296,58 @@ class AppStore {
   }
 
   /**
-   * Loads projects & tasks from Supabase and sets up Realtime subscriptions.
+   * Initializes Supabase Auth listener and loads user-owned projects & tasks once authenticated.
    */
-  private async initCloudSync() {
+  private async initAuthAndSync() {
     if (!isSupabaseConfigured) {
       this.setSyncStatus('offline');
       return;
     }
-    await this.fetchFromCloud();
 
-    supabase
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      this.currentUserId = session.user.id;
+      this.state.userEmail = session.user.email || null;
+      await this.fetchFromCloud();
+      this.subscribeRealtime();
+    } else {
+      this.currentUserId = null;
+      this.state.userEmail = null;
+      this.setSyncStatus('unauthenticated');
+    }
+
+    supabase.auth.onAuthStateChange((_event, newSession) => {
+      const nextUserId = newSession?.user?.id || null;
+      const nextEmail = newSession?.user?.email || null;
+
+      if (nextUserId && nextUserId !== this.currentUserId) {
+        this.currentUserId = nextUserId;
+        this.state.userEmail = nextEmail;
+        void this.fetchFromCloud();
+        this.subscribeRealtime();
+      } else if (!nextUserId) {
+        this.currentUserId = null;
+        this.state.userEmail = null;
+        if (this.realtimeChannel) {
+          void supabase.removeChannel(this.realtimeChannel);
+          this.realtimeChannel = null;
+        }
+        this.setSyncStatus('unauthenticated');
+      }
+    });
+  }
+
+  private subscribeRealtime() {
+    if (this.realtimeChannel) {
+      void supabase.removeChannel(this.realtimeChannel);
+    }
+    this.realtimeChannel = supabase
       .channel('beera-workspace-sync')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'projects' },
         () => {
-          if (!this.isApplyingRemote) {
+          if (!this.isApplyingRemote && this.currentUserId) {
             void this.fetchFromCloud();
           }
         }
@@ -312,7 +356,7 @@ class AppStore {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tasks' },
         () => {
-          if (!this.isApplyingRemote) {
+          if (!this.isApplyingRemote && this.currentUserId) {
             void this.fetchFromCloud();
           }
         }
@@ -320,7 +364,29 @@ class AppStore {
       .subscribe();
   }
 
+  public async signIn(email: string, password: string): Promise<{ error: string | null }> {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return { error: error ? error.message : null };
+  }
+
+  public async signUp(email: string, password: string): Promise<{ error: string | null; needsConfirmation: boolean }> {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) {
+      return { error: error.message, needsConfirmation: false };
+    }
+    return { error: null, needsConfirmation: !data.session };
+  }
+
+  public async signOut(): Promise<void> {
+    await supabase.auth.signOut();
+  }
+
   public async fetchFromCloud() {
+    if (!this.currentUserId) {
+      this.setSyncStatus('unauthenticated');
+      return;
+    }
+
     try {
       this.setSyncStatus('syncing');
       const [{ data: projRows, error: projErr }, { data: taskRows, error: taskErr }] = await Promise.all([
@@ -335,10 +401,23 @@ class AppStore {
       const typedTasks = (taskRows || []) as DbTaskRow[];
 
       if (typedProjects.length === 0 && this.state.projects.length > 0) {
-        // Seed existing local projects to cloud if cloud is completely empty
         await this.pushAllToCloud(this.state.projects);
         this.setSyncStatus('synced');
         return;
+      }
+
+      // Claim any initial unowned seed rows so they belong strictly to this authenticated user
+      const hasUnownedProjects = typedProjects.some(p => !p.user_id);
+      const hasUnownedTasks = typedTasks.some(t => !t.user_id);
+      if (hasUnownedProjects || hasUnownedTasks) {
+        this.isApplyingRemote = true;
+        if (hasUnownedProjects) {
+          await supabase.from('projects').update({ user_id: this.currentUserId }).is('user_id', null);
+        }
+        if (hasUnownedTasks) {
+          await supabase.from('tasks').update({ user_id: this.currentUserId }).is('user_id', null);
+        }
+        this.isApplyingRemote = false;
       }
 
       const tasksByProject = new Map<string, Task[]>();
@@ -375,12 +454,14 @@ class AppStore {
   }
 
   private async pushAllToCloud(projects: Project[]) {
+    if (!this.currentUserId) return;
     try {
       this.isApplyingRemote = true;
       this.setSyncStatus('syncing');
 
       const projectRows: DbProjectRow[] = projects.map((p, idx) => ({
         id: p.id,
+        user_id: this.currentUserId,
         name: p.name,
         key: p.key,
         description: p.description || '',
@@ -391,7 +472,7 @@ class AppStore {
       const taskRows: DbTaskRow[] = [];
       for (const p of projects) {
         p.tasks.forEach((t, idx) => {
-          taskRows.push(mapTaskToRow(t, p.id, idx));
+          taskRows.push(mapTaskToRow(t, p.id, idx, this.currentUserId!));
         });
       }
 
@@ -483,27 +564,31 @@ class AppStore {
     this.saveLocalCache();
     this.notify();
 
-    void (async () => {
-      try {
-        this.isApplyingRemote = true;
-        this.setSyncStatus('syncing');
-        const { error } = await supabase.from('projects').insert({
-          id: newProject.id,
-          name: newProject.name,
-          key: newProject.key,
-          description: newProject.description,
-          icon: newProject.icon,
-          position
-        });
-        if (error) throw error;
-        this.setSyncStatus('synced');
-      } catch (err) {
-        console.error('Failed to create project in Supabase:', err);
-        this.setSyncStatus('offline');
-      } finally {
-        this.isApplyingRemote = false;
-      }
-    })();
+    if (this.currentUserId) {
+      const userId = this.currentUserId;
+      void (async () => {
+        try {
+          this.isApplyingRemote = true;
+          this.setSyncStatus('syncing');
+          const { error } = await supabase.from('projects').insert({
+            id: newProject.id,
+            user_id: userId,
+            name: newProject.name,
+            key: newProject.key,
+            description: newProject.description,
+            icon: newProject.icon,
+            position
+          });
+          if (error) throw error;
+          this.setSyncStatus('synced');
+        } catch (err) {
+          console.error('Failed to create project in Supabase:', err);
+          this.setSyncStatus('offline');
+        } finally {
+          this.isApplyingRemote = false;
+        }
+      })();
+    }
 
     return true;
   }
@@ -516,20 +601,22 @@ class AppStore {
     this.saveLocalCache();
     this.notify();
 
-    void (async () => {
-      try {
-        this.isApplyingRemote = true;
-        this.setSyncStatus('syncing');
-        const { error } = await supabase.from('projects').delete().eq('id', projectId);
-        if (error) throw error;
-        this.setSyncStatus('synced');
-      } catch (err) {
-        console.error('Failed to delete project in Supabase:', err);
-        this.setSyncStatus('offline');
-      } finally {
-        this.isApplyingRemote = false;
-      }
-    })();
+    if (this.currentUserId) {
+      void (async () => {
+        try {
+          this.isApplyingRemote = true;
+          this.setSyncStatus('syncing');
+          const { error } = await supabase.from('projects').delete().eq('id', projectId);
+          if (error) throw error;
+          this.setSyncStatus('synced');
+        } catch (err) {
+          console.error('Failed to delete project in Supabase:', err);
+          this.setSyncStatus('offline');
+        } finally {
+          this.isApplyingRemote = false;
+        }
+      })();
+    }
   }
 
   // Tasks Management
@@ -564,22 +651,25 @@ class AppStore {
     this.saveLocalCache();
     this.notify();
 
-    void (async () => {
-      try {
-        this.isApplyingRemote = true;
-        this.setSyncStatus('syncing');
-        const { error } = await supabase
-          .from('tasks')
-          .upsert(mapTaskToRow(newTask, project.id, position), { onConflict: 'id' });
-        if (error) throw error;
-        this.setSyncStatus('synced');
-      } catch (err) {
-        console.error('Failed to add task in Supabase:', err);
-        this.setSyncStatus('offline');
-      } finally {
-        this.isApplyingRemote = false;
-      }
-    })();
+    if (this.currentUserId) {
+      const userId = this.currentUserId;
+      void (async () => {
+        try {
+          this.isApplyingRemote = true;
+          this.setSyncStatus('syncing');
+          const { error } = await supabase
+            .from('tasks')
+            .upsert(mapTaskToRow(newTask, project.id, position, userId), { onConflict: 'id' });
+          if (error) throw error;
+          this.setSyncStatus('synced');
+        } catch (err) {
+          console.error('Failed to add task in Supabase:', err);
+          this.setSyncStatus('offline');
+        } finally {
+          this.isApplyingRemote = false;
+        }
+      })();
+    }
 
     return newTask;
   }
@@ -601,22 +691,25 @@ class AppStore {
     this.saveLocalCache();
     this.notify();
 
-    void (async () => {
-      try {
-        this.isApplyingRemote = true;
-        this.setSyncStatus('syncing');
-        const { error } = await supabase
-          .from('tasks')
-          .upsert(mapTaskToRow(updatedTask, project.id, taskIndex), { onConflict: 'id' });
-        if (error) throw error;
-        this.setSyncStatus('synced');
-      } catch (err) {
-        console.error('Failed to update task in Supabase:', err);
-        this.setSyncStatus('offline');
-      } finally {
-        this.isApplyingRemote = false;
-      }
-    })();
+    if (this.currentUserId) {
+      const userId = this.currentUserId;
+      void (async () => {
+        try {
+          this.isApplyingRemote = true;
+          this.setSyncStatus('syncing');
+          const { error } = await supabase
+            .from('tasks')
+            .upsert(mapTaskToRow(updatedTask, project.id, taskIndex, userId), { onConflict: 'id' });
+          if (error) throw error;
+          this.setSyncStatus('synced');
+        } catch (err) {
+          console.error('Failed to update task in Supabase:', err);
+          this.setSyncStatus('offline');
+        } finally {
+          this.isApplyingRemote = false;
+        }
+      })();
+    }
   }
 
   public deleteTask(taskId: string) {
@@ -627,20 +720,22 @@ class AppStore {
     this.saveLocalCache();
     this.notify();
 
-    void (async () => {
-      try {
-        this.isApplyingRemote = true;
-        this.setSyncStatus('syncing');
-        const { error } = await supabase.from('tasks').delete().eq('id', taskId);
-        if (error) throw error;
-        this.setSyncStatus('synced');
-      } catch (err) {
-        console.error('Failed to delete task in Supabase:', err);
-        this.setSyncStatus('offline');
-      } finally {
-        this.isApplyingRemote = false;
-      }
-    })();
+    if (this.currentUserId) {
+      void (async () => {
+        try {
+          this.isApplyingRemote = true;
+          this.setSyncStatus('syncing');
+          const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+          if (error) throw error;
+          this.setSyncStatus('synced');
+        } catch (err) {
+          console.error('Failed to delete task in Supabase:', err);
+          this.setSyncStatus('offline');
+        } finally {
+          this.isApplyingRemote = false;
+        }
+      })();
+    }
   }
 
   // Drag and Drop State Manipulation
@@ -671,21 +766,24 @@ class AppStore {
     this.saveLocalCache();
     this.notify();
 
-    void (async () => {
-      try {
-        this.isApplyingRemote = true;
-        this.setSyncStatus('syncing');
-        const rows = project.tasks.map((t, idx) => mapTaskToRow(t, project.id, idx));
-        const { error } = await supabase.from('tasks').upsert(rows, { onConflict: 'id' });
-        if (error) throw error;
-        this.setSyncStatus('synced');
-      } catch (err) {
-        console.error('Failed to reorder/move task in Supabase:', err);
-        this.setSyncStatus('offline');
-      } finally {
-        this.isApplyingRemote = false;
-      }
-    })();
+    if (this.currentUserId) {
+      const userId = this.currentUserId;
+      void (async () => {
+        try {
+          this.isApplyingRemote = true;
+          this.setSyncStatus('syncing');
+          const rows = project.tasks.map((t, idx) => mapTaskToRow(t, project.id, idx, userId));
+          const { error } = await supabase.from('tasks').upsert(rows, { onConflict: 'id' });
+          if (error) throw error;
+          this.setSyncStatus('synced');
+        } catch (err) {
+          console.error('Failed to reorder/move task in Supabase:', err);
+          this.setSyncStatus('offline');
+        } finally {
+          this.isApplyingRemote = false;
+        }
+      })();
+    }
   }
 
   // Filters
@@ -708,7 +806,8 @@ class AppStore {
       if (parsed.projects && Array.isArray(parsed.projects)) {
         this.state = {
           ...parsed,
-          syncStatus: 'syncing'
+          syncStatus: this.currentUserId ? 'syncing' : 'unauthenticated',
+          userEmail: this.state.userEmail
         };
         setLanguage(this.state.language);
         this.applyTheme(this.state.theme);

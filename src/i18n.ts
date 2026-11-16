@@ -82,7 +82,21 @@ const translations: Record<Language, Record<string, string>> = {
     // Cloud Sync Status
     'cloud.synced': 'Synced to Supabase Cloud',
     'cloud.syncing': 'Syncing to Cloud...',
-    'cloud.offline': 'Offline (Local Cache)'
+    'cloud.offline': 'Offline (Local Cache)',
+    'cloud.unauthenticated': 'Sign in required',
+
+    // Authentication
+    'auth.title.signin': 'Sign in to Beera',
+    'auth.title.signup': 'Create your Beera Account',
+    'auth.subtitle': 'Access your projects and tasks securely from anywhere in the world.',
+    'auth.email': 'Email Address',
+    'auth.password': 'Password (min 6 characters)',
+    'auth.btn.signin': 'Sign In',
+    'auth.btn.signup': 'Create Account',
+    'auth.switch.toSignup': "Don't have an account? Sign Up",
+    'auth.switch.toSignin': 'Already have an account? Sign In',
+    'auth.signout': 'Sign Out',
+    'auth.signup.checkEmail': 'Account created! If email confirmation is enabled in Supabase, please check your inbox.'
   },
   he: {
     // Navigation & Layout
@@ -165,7 +179,21 @@ const translations: Record<Language, Record<string, string>> = {
     // Cloud Sync Status
     'cloud.synced': 'מסונכרן לענן (Supabase)',
     'cloud.syncing': 'מסנכרן לענן...',
-    'cloud.offline': 'מצב לא מקוון (שמירה מקומית)'
+    'cloud.offline': 'מצב לא מקוון (שמירה מקומית)',
+    'cloud.unauthenticated': 'נדרשת התחברות',
+
+    // Authentication
+    'auth.title.signin': 'התחברות ל-Beera',
+    'auth.title.signup': 'יצירת חשבון ב-Beera',
+    'auth.subtitle': 'גישה מאובטחת לפרויקטים ולמשימות שלך מכל מקום בעולם.',
+    'auth.email': 'כתובת אימייל',
+    'auth.password': 'סיסמה (לפחות 6 תווים)',
+    'auth.btn.signin': 'התחבר',
+    'auth.btn.signup': 'צור חשבון',
+    'auth.switch.toSignup': 'אין לך חשבון? הירשם כאן',
+    'auth.switch.toSignin': 'יש לך כבר חשבון? התחבר',
+    'auth.signout': 'התנתק',
+    'auth.signup.checkEmail': 'החשבון נוצר! אם אימות מייל מופעל ב-Supabase, בדוק את תיבת הדואר שלך.'
   }
 };
 

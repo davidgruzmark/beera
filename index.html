@@ -25,7 +25,8 @@
           <span id="lbl-global-create-task">Create Task</span>
         </button>
         <span class="top-bar-project-indicator" id="top-bar-project-name"></span>
-        <div class="top-bar-avatar">D</div>
+        <button class="btn btn-secondary" id="btn-signout" style="display: none; padding: 6px 12px; font-size: 0.78rem;"></button>
+        <div class="top-bar-avatar" id="top-bar-avatar">D</div>
       </div>
     </header>
 
@@ -42,6 +43,9 @@
 
     <!-- Task Details backdrop-blurred slideover/modal -->
     <div class="modal-backdrop" id="task-modal-backdrop"></div>
+
+    <!-- Authentication Modal -->
+    <div class="modal-backdrop" id="auth-modal-backdrop" style="z-index: 100;"></div>
 
     <!-- Project Creation Modal -->
     <div class="modal-backdrop" id="project-modal-backdrop">

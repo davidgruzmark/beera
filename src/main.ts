@@ -4,14 +4,17 @@ import { Sidebar } from './components/Sidebar';
 import { Board } from './components/Board';
 import { Dashboard } from './components/Dashboard';
 import { TaskModal } from './components/TaskModal';
+import { AuthModal } from './components/AuthModal';
 import { Icons } from './components/Icons';
 import { escapeHtml } from './utils';
+import { SyncStatus } from './types';
 
 class App {
   private sidebar: Sidebar;
   private board: Board;
   private dashboard: Dashboard;
   private taskModal: TaskModal;
+  private authModal: AuthModal;
 
   private currentMountedView: 'board' | 'dashboard' | null = null;
 
@@ -20,6 +23,7 @@ class App {
     this.board = new Board();
     this.dashboard = new Dashboard();
     this.taskModal = new TaskModal();
+    this.authModal = new AuthModal();
   }
 
   public init() {
@@ -40,6 +44,18 @@ class App {
     if (taskModalBackdrop) {
       this.taskModal.mount(taskModalBackdrop);
     }
+
+    // Mount Authentication Modal
+    const authModalBackdrop = document.getElementById('auth-modal-backdrop');
+    if (authModalBackdrop) {
+      this.authModal.mount(authModalBackdrop);
+    }
+
+    // Sign Out Trigger
+    const signOutBtn = document.getElementById('btn-signout');
+    signOutBtn?.addEventListener('click', () => {
+      void store.signOut();
+    });
 
     // Global Create Task Trigger
     const globalCreateBtn = document.getElementById('btn-global-create-task');
@@ -73,7 +89,7 @@ class App {
       this.updateView(state.currentView);
       this.translateProjectModal();
       this.updateTopBarProject();
-      this.updateTopBarSyncStatus(state.syncStatus || 'synced');
+      this.updateTopBarSyncStatus(state.syncStatus || 'synced', state.userEmail);
     });
 
     // Setup Project Creation Modal triggers & handlers
@@ -292,23 +308,35 @@ class App {
     }
   }
 
-  private updateTopBarSyncStatus(syncStatus: 'synced' | 'syncing' | 'offline') {
+  private updateTopBarSyncStatus(syncStatus: SyncStatus, userEmail?: string | null) {
     const syncEl = document.getElementById('top-bar-sync-status');
-    if (!syncEl) return;
+    if (syncEl) {
+      const dotColor =
+        syncStatus === 'synced'
+          ? 'hsl(var(--hsl-done))'
+          : syncStatus === 'syncing'
+          ? 'hsl(var(--hsl-inprogress))'
+          : 'hsl(var(--hsl-urgent))';
 
-    const dotColor =
-      syncStatus === 'synced'
-        ? 'hsl(var(--hsl-done))'
-        : syncStatus === 'syncing'
-        ? 'hsl(var(--hsl-inprogress))'
-        : 'hsl(var(--hsl-urgent))';
+      const label = t(`cloud.${syncStatus}`);
+      syncEl.innerHTML = `
+        <span style="width: 8px; height: 8px; border-radius: 50%; background: ${dotColor}; display: inline-block; box-shadow: 0 0 8px ${dotColor};"></span>
+        <span>${escapeHtml(label)}</span>
+      `;
+      syncEl.style.display = 'inline-flex';
+    }
 
-    const label = t(`cloud.${syncStatus}`);
-    syncEl.innerHTML = `
-      <span style="width: 8px; height: 8px; border-radius: 50%; background: ${dotColor}; display: inline-block; box-shadow: 0 0 8px ${dotColor};"></span>
-      <span>${label}</span>
-    `;
-    syncEl.style.display = 'inline-flex';
+    const signOutBtn = document.getElementById('btn-signout');
+    if (signOutBtn) {
+      signOutBtn.textContent = t('auth.signout');
+      signOutBtn.style.display = userEmail ? 'inline-flex' : 'none';
+    }
+
+    const avatarEl = document.getElementById('top-bar-avatar');
+    if (avatarEl) {
+      avatarEl.textContent = userEmail ? userEmail.charAt(0).toUpperCase() : 'D';
+      avatarEl.title = userEmail || '';
+    }
   }
 }
 
