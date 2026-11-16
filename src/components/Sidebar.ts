@@ -1,6 +1,7 @@
 import { store } from '../store';
 import { t } from '../i18n';
 import { Icons } from './Icons';
+import { escapeHtml } from '../utils';
 
 export class Sidebar {
   private container: HTMLElement | null = null;
@@ -39,14 +40,14 @@ export class Sidebar {
     state.projects.forEach(project => {
       const isActive = project.id === activeProjectId;
       projectsHtml += `
-        <div class="project-item ${isActive ? 'active' : ''}" data-project-id="${project.id}">
+        <div class="project-item ${isActive ? 'active' : ''}" data-project-id="${escapeHtml(project.id)}">
           <div class="project-item-meta">
             <span class="project-icon" style="display: flex; color: var(--primary);">${Icons.project(16)}</span>
-            <span class="project-name" title="${project.name}">${project.name}</span>
-            <span class="project-key-badge">${project.key}</span>
+            <span class="project-name" title="${escapeHtml(project.name)}">${escapeHtml(project.name)}</span>
+            <span class="project-key-badge">${escapeHtml(project.key)}</span>
           </div>
           ${state.projects.length > 1 ? `
-            <button class="project-delete-btn" data-project-id="${project.id}" title="${t('task.modal.delete')}">
+            <button class="project-delete-btn" data-project-id="${escapeHtml(project.id)}" title="${t('task.modal.delete')}">
               ✕
             </button>
           ` : ''}

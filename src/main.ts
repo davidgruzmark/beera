@@ -5,6 +5,7 @@ import { Board } from './components/Board';
 import { Dashboard } from './components/Dashboard';
 import { TaskModal } from './components/TaskModal';
 import { Icons } from './components/Icons';
+import { escapeHtml } from './utils';
 
 class App {
   private sidebar: Sidebar;
@@ -282,7 +283,7 @@ class App {
     if (project) {
       projectIndicator.innerHTML = `
         <span style="display: flex; align-items: center; justify-content: center; color: var(--primary);">${Icons.project(16)}</span>
-        <span>${project.name}</span>
+        <span>${escapeHtml(project.name)}</span>
       `;
       projectIndicator.style.display = 'flex';
     } else {

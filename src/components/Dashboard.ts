@@ -2,6 +2,7 @@ import { store } from '../store';
 import { t } from '../i18n';
 import { Task, TaskStatus } from '../types';
 import { Icons } from './Icons';
+import { escapeHtml } from '../utils';
 
 export class Dashboard {
   private container: HTMLElement | null = null;
@@ -39,9 +40,9 @@ export class Dashboard {
       this.container.innerHTML = `
         <div class="content-header">
           <div class="project-details-title">
-            <span>${project.icon}</span>
-            <span>${project.name}</span>
-            <span class="project-key-title">${project.key}</span>
+            <span>${escapeHtml(project.icon)}</span>
+            <span>${escapeHtml(project.name)}</span>
+            <span class="project-key-title">${escapeHtml(project.key)}</span>
           </div>
         </div>
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; text-align: center;">

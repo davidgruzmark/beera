@@ -2,6 +2,7 @@ import { store } from '../store';
 import { t } from '../i18n';
 import { Task, TaskPriority, TaskStatus, SubTask, Comment } from '../types';
 import { Icons } from './Icons';
+import { escapeHtml } from '../utils';
 
 export class TaskModal {
   private backdrop: HTMLElement | null = null;
@@ -61,7 +62,7 @@ export class TaskModal {
     let subtasksHtml = '';
     task.subTasks.forEach(st => {
       subtasksHtml += `
-        <div class="subtask-item ${st.completed ? 'completed' : ''}" data-subtask-id="${st.id}">
+        <div class="subtask-item ${st.completed ? 'completed' : ''}" data-subtask-id="${escapeHtml(st.id)}">
           <input 
             type="checkbox" 
             class="subtask-checkbox" 
@@ -70,7 +71,7 @@ export class TaskModal {
           <input 
             type="text" 
             class="subtask-title-input" 
-            value="${st.title}" 
+            value="${escapeHtml(st.title)}" 
             placeholder="Subtask description..." 
           />
           <button class="subtask-delete-btn" title="Delete Subtask">✕</button>
@@ -91,10 +92,10 @@ export class TaskModal {
       commentsHtml += `
         <div class="comment-bubble">
           <div class="comment-meta">
-            <span class="comment-author">${c.author}</span>
-            <span>${commentTime}</span>
+            <span class="comment-author">${escapeHtml(c.author)}</span>
+            <span>${escapeHtml(commentTime)}</span>
           </div>
-          <div class="comment-text">${c.text}</div>
+          <div class="comment-text">${escapeHtml(c.text)}</div>
         </div>
       `;
     });
@@ -103,9 +104,9 @@ export class TaskModal {
       <div class="modal-card">
         <div class="modal-header">
           <div style="display: flex; align-items: center; gap: 12px;">
-            <span class="project-key-title" style="font-size: 0.95rem;">${task.id}</span>
+            <span class="project-key-title" style="font-size: 0.95rem;">${escapeHtml(task.id)}</span>
             <span style="font-size: 0.8rem; color: var(--text-muted);">
-              ${t('task.modal.created')}: ${createdStr}
+              ${t('task.modal.created')}: ${escapeHtml(createdStr)}
             </span>
           </div>
           <button class="modal-close-btn" id="modal-close">✕</button>
@@ -121,7 +122,7 @@ export class TaskModal {
                 type="text" 
                 class="task-modal-title" 
                 id="task-title-edit" 
-                value="${task.title}" 
+                value="${escapeHtml(task.title)}" 
                 placeholder="Task Title"
               />
 
@@ -132,7 +133,7 @@ export class TaskModal {
                   class="form-textarea" 
                   id="task-desc-edit" 
                   placeholder="${t('task.modal.desc.placeholder')}"
-                >${task.description || ''}</textarea>
+                >${escapeHtml(task.description || '')}</textarea>
               </div>
 
               <!-- Subtasks / Checklist -->
@@ -214,7 +215,7 @@ export class TaskModal {
                     type="date" 
                     class="form-input" 
                     id="task-duedate-edit" 
-                    value="${task.dueDate || ''}" 
+                    value="${escapeHtml(task.dueDate || '')}" 
                   />
                 </div>
 
@@ -225,7 +226,7 @@ export class TaskModal {
                     type="text" 
                     class="form-input" 
                     id="task-tags-edit" 
-                    value="${task.tags.join(', ')}" 
+                    value="${escapeHtml(task.tags.join(', '))}" 
                     placeholder="Engineering, Design" 
                   />
                 </div>

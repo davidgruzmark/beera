@@ -1,6 +1,6 @@
 import { AppState, Project, SyncStatus, Task, TaskPriority, TaskStatus } from './types';
 import { setLanguage } from './i18n';
-import { supabase } from './supabase';
+import { isSupabaseConfigured, supabase } from './supabase';
 
 type StoreSubscriber = (state: AppState) => void;
 
@@ -291,6 +291,10 @@ class AppStore {
    * Loads projects & tasks from Supabase and sets up Realtime subscriptions.
    */
   private async initCloudSync() {
+    if (!isSupabaseConfigured) {
+      this.setSyncStatus('offline');
+      return;
+    }
     await this.fetchFromCloud();
 
     supabase

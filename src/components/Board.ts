@@ -2,6 +2,7 @@ import { store } from '../store';
 import { t } from '../i18n';
 import { Task, TaskPriority, TaskStatus, AppFilters } from '../types';
 import { Icons } from './Icons';
+import { escapeHtml } from '../utils';
 
 export class Board {
   private container: HTMLElement | null = null;
@@ -40,16 +41,16 @@ export class Board {
     project.tasks.forEach(t => t.tags.forEach(tag => allTags.add(tag)));
     
     const tagOptions = Array.from(allTags).map(tag => 
-      `<option value="${tag}" ${state.filters.tag === tag ? 'selected' : ''}>${tag}</option>`
+      `<option value="${escapeHtml(tag)}" ${state.filters.tag === tag ? 'selected' : ''}>${escapeHtml(tag)}</option>`
     ).join('');
 
     // Headers and Toolbar HTML
     let html = `
       <div class="content-header">
         <div class="project-details-title">
-          <span>${project.icon}</span>
-          <span>${project.name}</span>
-          <span class="project-key-title">${project.key}</span>
+          <span>${escapeHtml(project.icon)}</span>
+          <span>${escapeHtml(project.name)}</span>
+          <span class="project-key-title">${escapeHtml(project.key)}</span>
         </div>
       </div>
 
@@ -63,7 +64,7 @@ export class Board {
               class="search-input" 
               id="board-search" 
               placeholder="${t('board.search')}" 
-              value="${state.filters.search}" 
+              value="${escapeHtml(state.filters.search)}" 
             />
           </div>
 
@@ -244,20 +245,20 @@ export class Board {
     if (task.tags.length > 0) {
       tagsHtml = `<div class="task-card-tags">`;
       task.tags.slice(0, 3).forEach(tag => {
-        tagsHtml += `<span class="tag-badge">${tag}</span>`;
+        tagsHtml += `<span class="tag-badge">${escapeHtml(tag)}</span>`;
       });
       tagsHtml += `</div>`;
     }
 
     return `
-      <div class="task-card" draggable="true" data-task-id="${task.id}">
+      <div class="task-card" draggable="true" data-task-id="${escapeHtml(task.id)}">
         <div class="task-card-header">
-          <span class="task-card-key">${task.id}</span>
-          <span class="badge-priority badge-priority-${task.priority}">
+          <span class="task-card-key">${escapeHtml(task.id)}</span>
+          <span class="badge-priority badge-priority-${escapeHtml(task.priority)}">
             ${t('priority.' + task.priority)}
           </span>
         </div>
-        <div class="task-card-title">${task.title}</div>
+        <div class="task-card-title">${escapeHtml(task.title)}</div>
         
         ${tagsHtml}
         
