@@ -77,7 +77,12 @@ const translations: Record<Language, Record<string, string>> = {
     'dash.statusDist': 'Task Status Distribution',
     'dash.projectProgress': 'Project Progress Timeline',
     'dash.noTasks': 'No tasks in this project yet. Go to the Kanban Board to add tasks.',
-    'dash.burnDown': 'Remaining Tasks Curve'
+    'dash.burnDown': 'Remaining Tasks Curve',
+
+    // Cloud Sync Status
+    'cloud.synced': 'Synced to Supabase Cloud',
+    'cloud.syncing': 'Syncing to Cloud...',
+    'cloud.offline': 'Offline (Local Cache)'
   },
   he: {
     // Navigation & Layout
@@ -155,7 +160,12 @@ const translations: Record<Language, Record<string, string>> = {
     'dash.statusDist': 'התפלגות סטטוס משימות',
     'dash.projectProgress': 'גרף התקדמות פרויקט',
     'dash.noTasks': 'אין עדיין משימות בפרויקט זה. עבר ללוח הקנבן כדי להוסיף משימה ראשונה.',
-    'dash.burnDown': 'גרף ירידת עומס משימות'
+    'dash.burnDown': 'גרף ירידת עומס משימות',
+
+    // Cloud Sync Status
+    'cloud.synced': 'מסונכרן לענן (Supabase)',
+    'cloud.syncing': 'מסנכרן לענן...',
+    'cloud.offline': 'מצב לא מקוון (שמירה מקומית)'
   }
 };
 

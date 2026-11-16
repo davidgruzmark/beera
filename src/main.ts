@@ -72,6 +72,7 @@ class App {
       this.updateView(state.currentView);
       this.translateProjectModal();
       this.updateTopBarProject();
+      this.updateTopBarSyncStatus(state.syncStatus || 'synced');
     });
 
     // Setup Project Creation Modal triggers & handlers
@@ -288,6 +289,25 @@ class App {
       projectIndicator.innerHTML = '';
       projectIndicator.style.display = 'none';
     }
+  }
+
+  private updateTopBarSyncStatus(syncStatus: 'synced' | 'syncing' | 'offline') {
+    const syncEl = document.getElementById('top-bar-sync-status');
+    if (!syncEl) return;
+
+    const dotColor =
+      syncStatus === 'synced'
+        ? 'hsl(var(--hsl-done))'
+        : syncStatus === 'syncing'
+        ? 'hsl(var(--hsl-inprogress))'
+        : 'hsl(var(--hsl-urgent))';
+
+    const label = t(`cloud.${syncStatus}`);
+    syncEl.innerHTML = `
+      <span style="width: 8px; height: 8px; border-radius: 50%; background: ${dotColor}; display: inline-block; box-shadow: 0 0 8px ${dotColor};"></span>
+      <span>${label}</span>
+    `;
+    syncEl.style.display = 'inline-flex';
   }
 }
 

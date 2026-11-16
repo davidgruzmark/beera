@@ -1,9 +1,40 @@
-import { AppState, Project, Task, TaskStatus } from './types';
+import { AppState, Project, SyncStatus, Task, TaskPriority, TaskStatus } from './types';
 import { setLanguage } from './i18n';
+import { supabase } from './supabase';
 
 type StoreSubscriber = (state: AppState) => void;
 
 const STORAGE_KEY = 'antigravity_jira_state';
+
+interface DbProjectRow {
+  id: string;
+  name: string;
+  key: string;
+  description: string;
+  icon: string;
+  position: number;
+  created_at?: string;
+}
+
+interface DbTaskRow {
+  id: string;
+  project_id: string;
+  project_key: string;
+  task_num: number;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  due_date: string | null;
+  sub_tasks: Task['subTasks'];
+  comments: Task['comments'];
+  estimated_hours: number | string;
+  logged_hours: number | string;
+  tags: string[];
+  position: number;
+  created_at: number | string;
+  updated_at: number | string;
+}
 
 const defaultProjects: Project[] = [
   {
@@ -21,7 +52,7 @@ const defaultProjects: Project[] = [
         description: 'Create architectural designs for shock-absorbent, dust-deflecting titanium landing pads. Must withstand high thermal exposure during thruster engagement.',
         status: 'inprogress',
         priority: 'urgent',
-        dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 2 days from now
+        dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         subTasks: [
           { id: 'sub-1-1', title: 'Verify thermal load resistance threshold', completed: true },
           { id: 'sub-1-2', title: 'Stress-test structural integrity simulation', completed: false },
@@ -55,7 +86,7 @@ const defaultProjects: Project[] = [
         description: 'Prototype the carbon dioxide scrubber and oxygen generation assembly. Target efficiency rating is 99.8% recovery rate.',
         status: 'todo',
         priority: 'high',
-        dueDate: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 8 days from now
+        dueDate: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         subTasks: [
           { id: 'sub-2-1', title: 'Source catalytic converters', completed: true },
           { id: 'sub-2-2', title: 'Assemble intake valve manifolds', completed: false },
@@ -76,7 +107,7 @@ const defaultProjects: Project[] = [
         description: 'Perform deep-space sensor calibration runs. Ensure star trackers and LiDAR arrays coordinate with guidance computers for orbital adjustments.',
         status: 'review',
         priority: 'medium',
-        dueDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 1 day ago (overdue)
+        dueDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         subTasks: [
           { id: 'sub-3-1', title: 'Integrate star tracking camera feeds', completed: true },
           { id: 'sub-3-2', title: 'Verify telemetry checksum validation algorithms', completed: true }
@@ -103,7 +134,7 @@ const defaultProjects: Project[] = [
         description: 'Verify gimbal control linkages and electronic servo responses. Ensure precise thrust vector alignment.',
         status: 'done',
         priority: 'high',
-        dueDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 3 days ago
+        dueDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         subTasks: [
           { id: 'sub-4-1', title: 'Physical linkage inspection', completed: true },
           { id: 'sub-4-2', title: 'Servo power cycle tests', completed: true },
@@ -156,15 +187,58 @@ const defaultProjects: Project[] = [
   }
 ];
 
+function mapTaskToRow(task: Task, projectId: string, position: number): DbTaskRow {
+  return {
+    id: task.id,
+    project_id: projectId,
+    project_key: task.projectKey,
+    task_num: task.taskNum,
+    title: task.title,
+    description: task.description || '',
+    status: task.status,
+    priority: task.priority,
+    due_date: task.dueDate || null,
+    sub_tasks: task.subTasks || [],
+    comments: task.comments || [],
+    estimated_hours: task.estimatedHours || 0,
+    logged_hours: task.loggedHours || 0,
+    tags: task.tags || [],
+    position,
+    created_at: task.createdAt,
+    updated_at: task.updatedAt
+  };
+}
+
+function mapRowToTask(row: DbTaskRow): Task {
+  return {
+    id: row.id,
+    projectKey: row.project_key,
+    taskNum: Number(row.task_num),
+    title: row.title,
+    description: row.description || '',
+    status: row.status,
+    priority: row.priority,
+    dueDate: row.due_date || undefined,
+    subTasks: Array.isArray(row.sub_tasks) ? row.sub_tasks : [],
+    comments: Array.isArray(row.comments) ? row.comments : [],
+    estimatedHours: Number(row.estimated_hours) || 0,
+    loggedHours: Number(row.logged_hours) || 0,
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    createdAt: Number(row.created_at) || Date.now(),
+    updatedAt: Number(row.updated_at) || Date.now()
+  };
+}
+
 class AppStore {
   private state: AppState;
   private subscribers: Set<StoreSubscriber> = new Set();
+  private isApplyingRemote = false;
 
   constructor() {
     this.state = this.loadState();
-    // Set initial document language and direction
     setLanguage(this.state.language);
     this.applyTheme(this.state.theme);
+    void this.initCloudSync();
   }
 
   private loadState(): AppState {
@@ -172,16 +246,17 @@ class AppStore {
       const serialized = localStorage.getItem(STORAGE_KEY);
       if (serialized) {
         const parsed = JSON.parse(serialized);
-        // Basic validation
         if (parsed.projects && Array.isArray(parsed.projects) && parsed.activeProjectId !== undefined) {
-          return parsed;
+          return {
+            ...parsed,
+            syncStatus: 'syncing'
+          };
         }
       }
     } catch (e) {
       console.error('Error reading state from localStorage', e);
     }
 
-    // Default fallback state
     return {
       projects: defaultProjects,
       activeProjectId: 'proj-1',
@@ -192,15 +267,146 @@ class AppStore {
         search: '',
         priority: 'all',
         tag: 'all'
-      }
+      },
+      syncStatus: 'syncing'
     };
   }
 
-  private saveState() {
+  private saveLocalCache() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
     } catch (e) {
       console.error('Error saving state to localStorage', e);
+    }
+  }
+
+  private setSyncStatus(status: SyncStatus) {
+    if (this.state.syncStatus !== status) {
+      this.state.syncStatus = status;
+      this.notify();
+    }
+  }
+
+  /**
+   * Loads projects & tasks from Supabase and sets up Realtime subscriptions.
+   */
+  private async initCloudSync() {
+    await this.fetchFromCloud();
+
+    supabase
+      .channel('beera-workspace-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'projects' },
+        () => {
+          if (!this.isApplyingRemote) {
+            void this.fetchFromCloud();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks' },
+        () => {
+          if (!this.isApplyingRemote) {
+            void this.fetchFromCloud();
+          }
+        }
+      )
+      .subscribe();
+  }
+
+  public async fetchFromCloud() {
+    try {
+      this.setSyncStatus('syncing');
+      const [{ data: projRows, error: projErr }, { data: taskRows, error: taskErr }] = await Promise.all([
+        supabase.from('projects').select('*').order('position', { ascending: true }).order('created_at', { ascending: true }),
+        supabase.from('tasks').select('*').order('position', { ascending: true }).order('created_at', { ascending: true })
+      ]);
+
+      if (projErr) throw projErr;
+      if (taskErr) throw taskErr;
+
+      const typedProjects = (projRows || []) as DbProjectRow[];
+      const typedTasks = (taskRows || []) as DbTaskRow[];
+
+      if (typedProjects.length === 0 && this.state.projects.length > 0) {
+        // Seed existing local projects to cloud if cloud is completely empty
+        await this.pushAllToCloud(this.state.projects);
+        this.setSyncStatus('synced');
+        return;
+      }
+
+      const tasksByProject = new Map<string, Task[]>();
+      for (const row of typedTasks) {
+        const list = tasksByProject.get(row.project_id) || [];
+        list.push(mapRowToTask(row));
+        tasksByProject.set(row.project_id, list);
+      }
+
+      const cloudProjects: Project[] = typedProjects.map(p => ({
+        id: p.id,
+        name: p.name,
+        key: p.key,
+        description: p.description || '',
+        icon: p.icon || '📁',
+        tasks: tasksByProject.get(p.id) || []
+      }));
+
+      this.state.projects = cloudProjects;
+      if (
+        !this.state.activeProjectId ||
+        !cloudProjects.some(p => p.id === this.state.activeProjectId)
+      ) {
+        this.state.activeProjectId = cloudProjects.length > 0 ? cloudProjects[0].id : null;
+      }
+
+      this.state.syncStatus = 'synced';
+      this.saveLocalCache();
+      this.notify();
+    } catch (err) {
+      console.error('Supabase fetch error (using local cache):', err);
+      this.setSyncStatus('offline');
+    }
+  }
+
+  private async pushAllToCloud(projects: Project[]) {
+    try {
+      this.isApplyingRemote = true;
+      this.setSyncStatus('syncing');
+
+      const projectRows: DbProjectRow[] = projects.map((p, idx) => ({
+        id: p.id,
+        name: p.name,
+        key: p.key,
+        description: p.description || '',
+        icon: p.icon || '📁',
+        position: idx
+      }));
+
+      const taskRows: DbTaskRow[] = [];
+      for (const p of projects) {
+        p.tasks.forEach((t, idx) => {
+          taskRows.push(mapTaskToRow(t, p.id, idx));
+        });
+      }
+
+      if (projectRows.length > 0) {
+        const { error: pErr } = await supabase.from('projects').upsert(projectRows, { onConflict: 'id' });
+        if (pErr) throw pErr;
+      }
+
+      if (taskRows.length > 0) {
+        const { error: tErr } = await supabase.from('tasks').upsert(taskRows, { onConflict: 'id' });
+        if (tErr) throw tErr;
+      }
+
+      this.setSyncStatus('synced');
+    } catch (err) {
+      console.error('Failed to push state to Supabase:', err);
+      this.setSyncStatus('offline');
+    } finally {
+      this.isApplyingRemote = false;
     }
   }
 
@@ -211,7 +417,6 @@ class AppStore {
   // Pub/Sub registration
   public subscribe(subscriber: StoreSubscriber): () => void {
     this.subscribers.add(subscriber);
-    // Initial emission
     subscriber({ ...this.state });
     return () => {
       this.subscribers.delete(subscriber);
@@ -230,27 +435,27 @@ class AppStore {
   public toggleTheme() {
     this.state.theme = this.state.theme === 'dark' ? 'light' : 'dark';
     this.applyTheme(this.state.theme);
-    this.saveState();
+    this.saveLocalCache();
     this.notify();
   }
 
   public toggleLanguage() {
     this.state.language = this.state.language === 'en' ? 'he' : 'en';
     setLanguage(this.state.language);
-    this.saveState();
+    this.saveLocalCache();
     this.notify();
   }
 
   // Views & Projects
   public setView(view: 'board' | 'dashboard') {
     this.state.currentView = view;
-    this.saveState();
+    this.saveLocalCache();
     this.notify();
   }
 
   public setActiveProject(projectId: string | null) {
     this.state.activeProjectId = projectId;
-    this.saveState();
+    this.saveLocalCache();
     this.notify();
   }
 
@@ -259,6 +464,7 @@ class AppStore {
     const exists = this.state.projects.some(p => p.key === cleanKey);
     if (exists) return false;
 
+    const position = this.state.projects.length;
     const newProject: Project = {
       id: 'proj-' + Date.now(),
       name: name.trim(),
@@ -270,8 +476,31 @@ class AppStore {
 
     this.state.projects.push(newProject);
     this.state.activeProjectId = newProject.id;
-    this.saveState();
+    this.saveLocalCache();
     this.notify();
+
+    void (async () => {
+      try {
+        this.isApplyingRemote = true;
+        this.setSyncStatus('syncing');
+        const { error } = await supabase.from('projects').insert({
+          id: newProject.id,
+          name: newProject.name,
+          key: newProject.key,
+          description: newProject.description,
+          icon: newProject.icon,
+          position
+        });
+        if (error) throw error;
+        this.setSyncStatus('synced');
+      } catch (err) {
+        console.error('Failed to create project in Supabase:', err);
+        this.setSyncStatus('offline');
+      } finally {
+        this.isApplyingRemote = false;
+      }
+    })();
+
     return true;
   }
 
@@ -280,8 +509,23 @@ class AppStore {
     if (this.state.activeProjectId === projectId) {
       this.state.activeProjectId = this.state.projects.length > 0 ? this.state.projects[0].id : null;
     }
-    this.saveState();
+    this.saveLocalCache();
     this.notify();
+
+    void (async () => {
+      try {
+        this.isApplyingRemote = true;
+        this.setSyncStatus('syncing');
+        const { error } = await supabase.from('projects').delete().eq('id', projectId);
+        if (error) throw error;
+        this.setSyncStatus('synced');
+      } catch (err) {
+        console.error('Failed to delete project in Supabase:', err);
+        this.setSyncStatus('offline');
+      } finally {
+        this.isApplyingRemote = false;
+      }
+    })();
   }
 
   // Tasks Management
@@ -294,6 +538,7 @@ class AppStore {
     if (!project) return null;
 
     const taskNum = project.tasks.length > 0 ? Math.max(...project.tasks.map(t => t.taskNum)) + 1 : 1;
+    const position = project.tasks.length;
     const newTask: Task = {
       id: `${project.key}-${taskNum}`,
       projectKey: project.key,
@@ -312,8 +557,26 @@ class AppStore {
     };
 
     project.tasks.push(newTask);
-    this.saveState();
+    this.saveLocalCache();
     this.notify();
+
+    void (async () => {
+      try {
+        this.isApplyingRemote = true;
+        this.setSyncStatus('syncing');
+        const { error } = await supabase
+          .from('tasks')
+          .upsert(mapTaskToRow(newTask, project.id, position), { onConflict: 'id' });
+        if (error) throw error;
+        this.setSyncStatus('synced');
+      } catch (err) {
+        console.error('Failed to add task in Supabase:', err);
+        this.setSyncStatus('offline');
+      } finally {
+        this.isApplyingRemote = false;
+      }
+    })();
+
     return newTask;
   }
 
@@ -324,15 +587,32 @@ class AppStore {
     const taskIndex = project.tasks.findIndex(t => t.id === taskId);
     if (taskIndex === -1) return;
 
-    const updatedTask = {
+    const updatedTask: Task = {
       ...project.tasks[taskIndex],
       ...fields,
       updatedAt: Date.now()
     };
 
     project.tasks[taskIndex] = updatedTask;
-    this.saveState();
+    this.saveLocalCache();
     this.notify();
+
+    void (async () => {
+      try {
+        this.isApplyingRemote = true;
+        this.setSyncStatus('syncing');
+        const { error } = await supabase
+          .from('tasks')
+          .upsert(mapTaskToRow(updatedTask, project.id, taskIndex), { onConflict: 'id' });
+        if (error) throw error;
+        this.setSyncStatus('synced');
+      } catch (err) {
+        console.error('Failed to update task in Supabase:', err);
+        this.setSyncStatus('offline');
+      } finally {
+        this.isApplyingRemote = false;
+      }
+    })();
   }
 
   public deleteTask(taskId: string) {
@@ -340,8 +620,23 @@ class AppStore {
     if (!project) return;
 
     project.tasks = project.tasks.filter(t => t.id !== taskId);
-    this.saveState();
+    this.saveLocalCache();
     this.notify();
+
+    void (async () => {
+      try {
+        this.isApplyingRemote = true;
+        this.setSyncStatus('syncing');
+        const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+        if (error) throw error;
+        this.setSyncStatus('synced');
+      } catch (err) {
+        console.error('Failed to delete task in Supabase:', err);
+        this.setSyncStatus('offline');
+      } finally {
+        this.isApplyingRemote = false;
+      }
+    })();
   }
 
   // Drag and Drop State Manipulation
@@ -356,24 +651,37 @@ class AppStore {
     task.status = targetStatus;
     task.updatedAt = Date.now();
 
-    // Reorder inside tasks if index is provided
     if (targetIndex !== undefined) {
-      project.tasks.splice(taskIndex, 1); // remove from old position
-      
-      // Calculate where to insert
-      let colTasks = project.tasks.filter(t => t.status === targetStatus);
-      // Let's find index in global list
+      project.tasks.splice(taskIndex, 1);
+
+      const colTasks = project.tasks.filter(t => t.status === targetStatus);
       let globalInsertIdx = project.tasks.length;
       if (targetIndex < colTasks.length) {
         const targetColTask = colTasks[targetIndex];
         globalInsertIdx = project.tasks.findIndex(t => t.id === targetColTask.id);
       }
-      
+
       project.tasks.splice(globalInsertIdx, 0, task);
     }
 
-    this.saveState();
+    this.saveLocalCache();
     this.notify();
+
+    void (async () => {
+      try {
+        this.isApplyingRemote = true;
+        this.setSyncStatus('syncing');
+        const rows = project.tasks.map((t, idx) => mapTaskToRow(t, project.id, idx));
+        const { error } = await supabase.from('tasks').upsert(rows, { onConflict: 'id' });
+        if (error) throw error;
+        this.setSyncStatus('synced');
+      } catch (err) {
+        console.error('Failed to reorder/move task in Supabase:', err);
+        this.setSyncStatus('offline');
+      } finally {
+        this.isApplyingRemote = false;
+      }
+    })();
   }
 
   // Filters
@@ -394,12 +702,15 @@ class AppStore {
     try {
       const parsed = JSON.parse(jsonStr);
       if (parsed.projects && Array.isArray(parsed.projects)) {
-        this.state = parsed;
-        // Apply configs
+        this.state = {
+          ...parsed,
+          syncStatus: 'syncing'
+        };
         setLanguage(this.state.language);
         this.applyTheme(this.state.theme);
-        this.saveState();
+        this.saveLocalCache();
         this.notify();
+        void this.pushAllToCloud(this.state.projects);
         return true;
       }
     } catch (e) {
