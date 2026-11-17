@@ -234,9 +234,9 @@ class AppStore {
               assignee: parsed.filters?.assignee || 'all',
               boardScope: parsed.filters?.boardScope === 'active_sprint' ? 'active_sprint' : 'all'
             },
-            syncStatus: 'unauthenticated',
-            userEmail: null,
-            currentUserProfile: null
+            syncStatus: 'syncing',
+            userEmail: parsed.userEmail || null,
+            currentUserProfile: parsed.currentUserProfile || null
           };
         }
       }
@@ -257,7 +257,7 @@ class AppStore {
         assignee: 'all',
         boardScope: 'all'
       },
-      syncStatus: 'unauthenticated',
+      syncStatus: 'syncing',
       userEmail: null,
       currentUserProfile: null
     };
@@ -422,7 +422,15 @@ class AppStore {
   }
 
   public async signOut(): Promise<void> {
+    const rememberMe = localStorage.getItem('beera_remember_me') !== 'false';
+    const savedEmail = localStorage.getItem('beera_saved_email');
     localStorage.removeItem(STORAGE_KEY);
+    if (!rememberMe) {
+      localStorage.removeItem('beera_saved_email');
+      localStorage.removeItem('beera_remember_me');
+    } else if (savedEmail) {
+      localStorage.setItem('beera_saved_email', savedEmail);
+    }
     await supabase.auth.signOut();
   }
 

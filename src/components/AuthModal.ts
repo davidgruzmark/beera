@@ -11,6 +11,8 @@ export class AuthModal {
   private errorMsg: string | null = null;
   private infoMsg: string | null = null;
   private isSubmitting = false;
+  private rememberMe = localStorage.getItem('beera_remember_me') !== 'false';
+  private savedEmail = localStorage.getItem('beera_saved_email') || '';
 
   public mount(backdropElement: HTMLElement) {
     this.backdrop = backdropElement;
@@ -72,6 +74,7 @@ export class AuthModal {
                 class="form-input"
                 id="auth-email-input"
                 placeholder="you@example.com"
+                value="${escapeHtml(this.savedEmail)}"
                 autocomplete="email"
                 required
               />
@@ -88,6 +91,18 @@ export class AuthModal {
                 autocomplete="${isSignin ? 'current-password' : 'new-password'}"
                 required
               />
+            </div>
+
+            <div class="form-row" style="display: flex; align-items: center; justify-content: space-between; margin: -2px 0 2px 0;">
+              <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer; user-select: none;">
+                <input
+                  type="checkbox"
+                  id="auth-remember-me"
+                  ${this.rememberMe ? 'checked' : ''}
+                  style="accent-color: var(--primary); width: 16px; height: 16px; cursor: pointer; border-radius: 4px;"
+                />
+                <span>${t('auth.rememberMe')}</span>
+              </label>
             </div>
 
             <button
@@ -141,6 +156,18 @@ export class AuthModal {
       const password = passwordInput?.value || '';
 
       if (!email || !password) return;
+
+      const rememberInput = this.backdrop?.querySelector('#auth-remember-me') as HTMLInputElement | null;
+      const remember = rememberInput ? rememberInput.checked : true;
+      this.rememberMe = remember;
+      localStorage.setItem('beera_remember_me', remember ? 'true' : 'false');
+      if (remember) {
+        localStorage.setItem('beera_saved_email', email);
+        this.savedEmail = email;
+      } else {
+        localStorage.removeItem('beera_saved_email');
+        this.savedEmail = '';
+      }
 
       this.isSubmitting = true;
       this.errorMsg = null;
