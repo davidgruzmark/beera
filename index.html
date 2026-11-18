@@ -11,8 +11,8 @@
     <link rel="apple-touch-icon" href="./favicon.svg" />
     
     <!-- Primary styles -->
-    <script type="module" crossorigin src="./assets/index-7PgRdId2.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BtSjrxBM.css">
+    <script type="module" crossorigin src="./assets/index-v1FaN7JB.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DsaLTngN.css">
   </head>
   <body>
     <!-- Top Header Bar -->
@@ -23,6 +23,11 @@
         <span class="top-bar-title">Beera</span>
       </div>
       <div class="top-bar-meta-area">
+        <button class="cmd-trigger-btn" id="btn-cmd-palette" type="button" title="Ctrl+K / ⌘K">
+          <span id="cmd-trigger-icon" style="display: flex;"></span>
+          <span id="lbl-cmd-trigger">Search &amp; Commands</span>
+          <kbd class="cmd-kbd">⌘K</kbd>
+        </button>
         <span class="top-bar-project-indicator" id="top-bar-sync-status" style="font-size: 0.78rem; gap: 6px; padding: 4px 10px;"></span>
         <button class="btn btn-primary" id="btn-global-create-task" style="padding: 8px 14px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px; margin-inline-end: 8px;">
           <span id="global-create-task-icon" style="display: flex;"></span>
@@ -74,6 +79,9 @@
 
     <!-- Authentication Modal -->
     <div class="modal-backdrop" id="auth-modal-backdrop" style="z-index: 100;"></div>
+
+    <!-- Command Palette (Cmd+K / Ctrl+K) -->
+    <div class="modal-backdrop" id="cmd-palette-backdrop" style="z-index: 1200;"></div>
 
     <!-- Project Creation Modal -->
     <div class="modal-backdrop" id="project-modal-backdrop">
