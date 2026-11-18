@@ -407,6 +407,14 @@ class AppStore {
     email: string,
     password: string
   ): Promise<{ error: string | null; needsConfirmation: boolean }> {
+    const cleanEmail = email.toLowerCase().trim();
+    if (cleanEmail === 'yinon3413@gmail.com' || cleanEmail.includes('yinon3413')) {
+      return {
+        error: this.state.language === 'he' ? 'כתובת אימייל זו חסומה להרשמה.' : 'This email address is blocked from registration.',
+        needsConfirmation: false
+      };
+    }
+
     const redirectUrl = `${window.location.origin}${window.location.pathname}`;
     const { data, error } = await supabase.auth.signUp({
       email,

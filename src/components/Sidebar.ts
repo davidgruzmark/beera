@@ -121,6 +121,7 @@ export class Sidebar {
       item.addEventListener('click', () => {
         const view = item.getAttribute('data-view') as 'board' | 'backlog' | 'dashboard';
         store.setView(view);
+        window.dispatchEvent(new CustomEvent('close-mobile-sidebar'));
       });
     });
 
@@ -134,6 +135,7 @@ export class Sidebar {
         const projectId = item.getAttribute('data-project-id');
         if (projectId) {
           store.setActiveProject(projectId);
+          window.dispatchEvent(new CustomEvent('close-mobile-sidebar'));
         }
       });
     });

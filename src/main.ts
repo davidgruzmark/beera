@@ -41,9 +41,30 @@ class App {
 
     // Mount Sidebar
     const sidebarMount = document.getElementById('sidebar-mount');
+    const mobileMenuBtn = document.getElementById('btn-mobile-sidebar-toggle');
+    const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+
     if (sidebarMount) {
       this.sidebar.mount(sidebarMount);
     }
+
+    if (mobileMenuBtn) {
+      mobileMenuBtn.innerHTML = Icons.menu(20);
+      mobileMenuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isOpen = sidebarMount?.classList.contains('mobile-open');
+        sidebarMount?.classList.toggle('mobile-open', !isOpen);
+        sidebarBackdrop?.classList.toggle('active', !isOpen);
+      });
+    }
+
+    const closeMobileSidebar = () => {
+      sidebarMount?.classList.remove('mobile-open');
+      sidebarBackdrop?.classList.remove('active');
+    };
+
+    sidebarBackdrop?.addEventListener('click', closeMobileSidebar);
+    window.addEventListener('close-mobile-sidebar', closeMobileSidebar);
 
     // Mount Task Detail Modal
     const taskModalBackdrop = document.getElementById('task-modal-backdrop');
