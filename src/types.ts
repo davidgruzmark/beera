@@ -88,7 +88,7 @@ export interface AppFilters {
 export interface AppState {
   projects: Project[];
   activeProjectId: string | null;
-  currentView: 'board' | 'backlog' | 'dashboard';
+  currentView: 'board' | 'table' | 'backlog' | 'dashboard';
   language: 'en' | 'he';
   theme: 'dark' | 'light';
   filters: AppFilters;

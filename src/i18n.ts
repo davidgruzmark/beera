@@ -4,6 +4,7 @@ const translations: Record<Language, Record<string, string>> = {
   en: {
     // Navigation & Layout
     'nav.board': 'Kanban Board',
+    'nav.table': 'Table View',
     'nav.backlog': 'Backlog & Sprints',
     'nav.dashboard': 'Dashboard',
     'nav.projects': 'Projects',
@@ -158,11 +159,46 @@ const translations: Record<Language, Record<string, string>> = {
     'auth.switch.toSignup': "Don't have an account? Sign Up",
     'auth.switch.toSignin': 'Already have an account? Sign In',
     'auth.signout': 'Sign Out',
-    'auth.signup.checkEmail': 'Account created! If email confirmation is enabled in Supabase, please check your inbox.'
+    'auth.signup.checkEmail': 'Account created! If email confirmation is enabled in Supabase, please check your inbox.',
+
+    // Table View
+    'table.col.key': 'Key',
+    'table.col.title': 'Task',
+    'table.col.type': 'Type',
+    'table.col.status': 'Status',
+    'table.col.priority': 'Priority',
+    'table.col.assignee': 'Owner',
+    'table.col.sprint': 'Sprint',
+    'table.col.points': 'Pts',
+    'table.col.dueDate': 'Due Date',
+    'table.groupBy': 'Group by:',
+    'table.group.status': 'Status',
+    'table.group.sprint': 'Sprint',
+    'table.group.priority': 'Priority',
+    'table.group.none': 'All Tasks',
+    'table.addRow': '+ Add task to group...',
+    'table.empty': 'No tasks match current filters.',
+    'table.openDetails': 'Open details',
+
+    // Command Palette
+    'cmd.trigger': 'Search & Commands',
+    'cmd.placeholder': 'Search tasks, projects, or type a command...',
+    'cmd.section.actions': 'Quick Actions',
+    'cmd.section.views': 'Views & Navigation',
+    'cmd.section.tasks': 'Tasks',
+    'cmd.section.projects': 'Projects',
+    'cmd.action.newTask': 'Create New Task',
+    'cmd.action.newProject': 'Create New Project',
+    'cmd.action.share': 'Team & Sharing Settings',
+    'cmd.action.toggleTheme': 'Toggle Dark / Light Mode',
+    'cmd.action.toggleLang': 'Switch Language (עברית / English)',
+    'cmd.empty': 'No matching tasks or commands found.',
+    'cmd.hint': '↑↓ Navigate • Enter Select • Esc Close'
   },
   he: {
     // Navigation & Layout
     'nav.board': 'לוח קנבן',
+    'nav.table': 'תצוגת טבלה',
     'nav.backlog': 'צבר וספרינטים',
     'nav.dashboard': 'מדדים וניתוח',
     'nav.projects': 'פרויקטים',
@@ -317,7 +353,41 @@ const translations: Record<Language, Record<string, string>> = {
     'auth.switch.toSignup': 'אין לך חשבון? הירשם כאן',
     'auth.switch.toSignin': 'יש לך כבר חשבון? התחבר',
     'auth.signout': 'התנתק',
-    'auth.signup.checkEmail': 'החשבון נוצר! אם אימות מייל מופעל ב-Supabase, בדוק את תיבת הדואר שלך.'
+    'auth.signup.checkEmail': 'החשבון נוצר! אם אימות מייל מופעל ב-Supabase, בדוק את תיבת הדואר שלך.',
+
+    // Table View
+    'table.col.key': 'מזהה',
+    'table.col.title': 'משימה',
+    'table.col.type': 'סוג',
+    'table.col.status': 'סטטוס',
+    'table.col.priority': 'עדיפות',
+    'table.col.assignee': 'אחראי',
+    'table.col.sprint': 'ספרינט',
+    'table.col.points': 'נק׳',
+    'table.col.dueDate': 'תאריך יעד',
+    'table.groupBy': 'קבץ לפי:',
+    'table.group.status': 'סטטוס',
+    'table.group.sprint': 'ספרינט',
+    'table.group.priority': 'עדיפות',
+    'table.group.none': 'ללא קיבוץ',
+    'table.addRow': '+ הוסף משימה לקבוצה...',
+    'table.empty': 'אין משימות התואמות לסינון.',
+    'table.openDetails': 'פתח פרטים',
+
+    // Command Palette
+    'cmd.trigger': 'חיפוש ופקודות',
+    'cmd.placeholder': 'חפש משימות, פרויקטים או הקלד פקודה...',
+    'cmd.section.actions': 'פעולות מהירות',
+    'cmd.section.views': 'ניווט ותצוגות',
+    'cmd.section.tasks': 'משימות',
+    'cmd.section.projects': 'פרויקטים',
+    'cmd.action.newTask': 'יצירת משימה חדשה',
+    'cmd.action.newProject': 'יצירת פרויקט חדש',
+    'cmd.action.share': 'הגדרות שיתוף וצוות',
+    'cmd.action.toggleTheme': 'החלף מצב יום / לילה',
+    'cmd.action.toggleLang': 'החלף שפה (עברית / English)',
+    'cmd.empty': 'לא נמצאו משימות או פקודות תואמות.',
+    'cmd.hint': '↑↓ לניווט • Enter לבחירה • Esc לסגירה'
   }
 };
 

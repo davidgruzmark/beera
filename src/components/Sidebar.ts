@@ -63,6 +63,10 @@ export class Sidebar {
           <span style="display: flex; color: currentColor;">${Icons.board(18)}</span>
           <span>${t('nav.board')}</span>
         </div>
+        <div class="nav-item ${activeView === 'table' ? 'active' : ''}" data-view="table">
+          <span style="display: flex; color: currentColor;">${Icons.table(18)}</span>
+          <span>${t('nav.table')}</span>
+        </div>
         <div class="nav-item ${activeView === 'backlog' ? 'active' : ''}" data-view="backlog">
           <span style="display: flex; color: currentColor;">${Icons.layers(18)}</span>
           <span>${t('nav.backlog')}</span>
@@ -116,10 +120,10 @@ export class Sidebar {
   private bindEvents() {
     if (!this.container) return;
 
-    // View switcher (board vs backlog vs dashboard)
+    // View switcher (board vs table vs backlog vs dashboard)
     this.container.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', () => {
-        const view = item.getAttribute('data-view') as 'board' | 'backlog' | 'dashboard';
+        const view = item.getAttribute('data-view') as 'board' | 'table' | 'backlog' | 'dashboard';
         store.setView(view);
         window.dispatchEvent(new CustomEvent('close-mobile-sidebar'));
       });

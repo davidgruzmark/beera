@@ -222,7 +222,7 @@ class AppStore {
             projects: normalizedProjects,
             activeProjectId: parsed.activeProjectId ?? null,
             currentView:
-              parsed.currentView === 'backlog' || parsed.currentView === 'dashboard'
+              parsed.currentView === 'table' || parsed.currentView === 'backlog' || parsed.currentView === 'dashboard'
                 ? parsed.currentView
                 : 'board',
             language: parsed.language === 'he' ? 'he' : 'en',
@@ -699,7 +699,7 @@ class AppStore {
   }
 
   // Views & Projects
-  public setView(view: 'board' | 'backlog' | 'dashboard') {
+  public setView(view: 'board' | 'table' | 'backlog' | 'dashboard') {
     this.state.currentView = view;
     this.saveLocalCache();
     this.notify();

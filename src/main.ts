@@ -2,11 +2,13 @@ import { store } from './store';
 import { t } from './i18n';
 import { Sidebar } from './components/Sidebar';
 import { Board } from './components/Board';
+import { TableView } from './components/TableView';
 import { Backlog } from './components/Backlog';
 import { Dashboard } from './components/Dashboard';
 import { TaskModal } from './components/TaskModal';
 import { ShareModal } from './components/ShareModal';
 import { AuthModal } from './components/AuthModal';
+import { CommandPalette } from './components/CommandPalette';
 import { Icons } from './components/Icons';
 import { escapeHtml } from './utils';
 import { SyncStatus } from './types';
@@ -14,22 +16,26 @@ import { SyncStatus } from './types';
 class App {
   private sidebar: Sidebar;
   private board: Board;
+  private tableView: TableView;
   private backlog: Backlog;
   private dashboard: Dashboard;
   private taskModal: TaskModal;
   private shareModal: ShareModal;
   private authModal: AuthModal;
+  private commandPalette: CommandPalette;
 
-  private currentMountedView: 'board' | 'backlog' | 'dashboard' | null = null;
+  private currentMountedView: 'board' | 'table' | 'backlog' | 'dashboard' | null = null;
 
   constructor() {
     this.sidebar = new Sidebar();
     this.board = new Board();
+    this.tableView = new TableView();
     this.backlog = new Backlog();
     this.dashboard = new Dashboard();
     this.taskModal = new TaskModal();
     this.shareModal = new ShareModal();
     this.authModal = new AuthModal();
+    this.commandPalette = new CommandPalette();
   }
 
   public init() {
@@ -84,6 +90,19 @@ class App {
       this.authModal.mount(authModalBackdrop);
     }
 
+    // Mount Command Palette (Cmd+K / Ctrl+K)
+    const cmdBackdrop = document.getElementById('cmd-palette-backdrop');
+    if (cmdBackdrop) {
+      this.commandPalette.mount(cmdBackdrop);
+    }
+
+    const cmdBtn = document.getElementById('btn-cmd-palette');
+    const cmdIcon = document.getElementById('cmd-trigger-icon');
+    if (cmdIcon) cmdIcon.innerHTML = Icons.search(14);
+    cmdBtn?.addEventListener('click', () => {
+      this.commandPalette.open();
+    });
+
     // Profile Menu and Sign Out Trigger
     const profileContainer = document.getElementById('profile-menu-container');
     const avatarBtn = document.getElementById('top-bar-avatar');
@@ -136,7 +155,7 @@ class App {
         }
 
         // Switch to default board view so the new task is immediately in front of the user
-        if (state.currentView !== 'board') {
+        if (state.currentView !== 'board' && state.currentView !== 'table') {
           store.setView('board');
         }
 
@@ -170,7 +189,7 @@ class App {
    * Switches views (Kanban Board vs. Backlog & Sprints vs. Dashboard) based on state.
    * Cleans up the previous component to avoid memory leaks.
    */
-  private updateView(view: 'board' | 'backlog' | 'dashboard') {
+  private updateView(view: 'board' | 'table' | 'backlog' | 'dashboard') {
     if (this.currentMountedView === view) return;
 
     const contentMount = document.getElementById('content-mount');
@@ -179,6 +198,8 @@ class App {
     // Unmount active view
     if (this.currentMountedView === 'board') {
       this.board.unmount();
+    } else if (this.currentMountedView === 'table') {
+      this.tableView.unmount();
     } else if (this.currentMountedView === 'backlog') {
       this.backlog.unmount();
     } else if (this.currentMountedView === 'dashboard') {
@@ -188,6 +209,8 @@ class App {
     // Mount new view
     if (view === 'board') {
       this.board.mount(contentMount);
+    } else if (view === 'table') {
+      this.tableView.mount(contentMount);
     } else if (view === 'backlog') {
       this.backlog.mount(contentMount);
     } else {
@@ -322,10 +345,14 @@ class App {
    * Translates elements inside the project modal markup in-place.
    */
   private translateProjectModal() {
-    // Translate global Create Task button
+    // Translate global Create Task button & Command Palette trigger
     const globalCreateText = document.getElementById('lbl-global-create-task');
     if (globalCreateText) {
       globalCreateText.textContent = store.getState().language === 'he' ? 'יצירת משימה' : 'Create Task';
+    }
+    const cmdTriggerText = document.getElementById('lbl-cmd-trigger');
+    if (cmdTriggerText) {
+      cmdTriggerText.textContent = t('cmd.trigger');
     }
 
     const elements = [
